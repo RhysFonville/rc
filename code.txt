@@ -1,0 +1,9 @@
+res ch c 1
+def ch input_prompt "Enter a character: "
+def ch output_prompt "Your new character is: "
+1 < input_prompt 19
+0 > c 1
+^c = 1+^c
+1 < output_prompt 23
+1 < c 1
+exit 0
