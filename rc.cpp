@@ -60,9 +60,8 @@ std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
 std::vector<Register> registers = {
-	{"r9"}, {"r10"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
-	{"rax"}, {"rbx"}, {"rcx"}, {"rdx"}, {"rsi"}, {"rdi"}, // ARGUMENT REGISTERS
-	{"rsp"}, {"rbp"} // STACK/BASE POINTER
+	{"rbx"}, {"rcx"}, {"rsp"}, {"rbp"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
+	{"rax"}, {"rdi"}, {"rsi"}, {"rdx"}, {"r10"}, {"r8"}, {"r9"} // ARGUMENT REGISTERS
 };
 
 std::vector<std::string> out;
