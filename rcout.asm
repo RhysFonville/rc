@@ -24,18 +24,18 @@ mov rdi, 0
 mov rsi, n2
 mov rdx, 1
 syscall
-mov rbx, [n1]
-mov rcx, [n2]
-add rbx, rcx
-mov [_add], rbx
-mov rcx, [n1]
-mov rsp, [n2]
-sub rcx, rsp
-mov [_sub], rcx
-mov rsp, [n1]
-mov rbp, [n2]
-mul rsp
-mov [_mul], rsp
+mov %r9, (n1)
+mov %r10, (n2)
+add %r9, %r10
+mov (_add), %r9
+mov %r10, (n1)
+mov %r11, (n2)
+sub %r10, %r11
+mov (_sub), %r10
+mov %r11, (n1)
+mov %r12, (n2)
+mul %r11
+mov (_mul), %r11
 mov rax, 1
 mov rdi, 1
 mov rsi, _add

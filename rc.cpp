@@ -6,6 +6,17 @@
 #include <utility>
 #include "Token.h"
 
+#define NULL_REG registers.back()
+
+#define ASSERT_NULL_TOKS(min_offset, max_offset) \
+for (std::vector<std::string>::iterator it = tok_it-min_offset; it != tok_it+max_offset+1; it++) { \
+	if (it == nullptr) { \
+		clog::error("Expecting a token", line_number); \
+	} \
+}
+
+#define ASSERT_NULL_TOK(offset) ASSERT_NULL_TOKS(offset, offset)
+
 #define WHILE_FIND_TOKEN(tok) \
 	tok_it = _ltoks.begin(); \
 	while (true) { \
@@ -54,8 +65,6 @@ std::vector<Register> registers = {
 	{"rsp"}, {"rbp"} // STACK/BASE POINTER
 };
 
-#define NULL_REG registers.back()
-
 std::vector<std::string> out;
 
 using uchar = unsigned char;
@@ -71,16 +80,16 @@ const std::string STDOUT    = "1";
 namespace clog {
 	const std::string MISSING_TOKEN = "Missing token.";
 
-	void out(const std::string &str) noexcept {
-		std::cerr << "WARNING: " << str << std::endl;
+	void out(const std::string &str, size_t line = -1) noexcept {
+		std::cout << str << std::endl;
 	}
-	void warn(const std::string &str) noexcept {
-		std::cerr << "WARNING: " << str << std::endl;
+	void warn(const std::string &str, size_t line) noexcept {
+		std::cerr << (line != -1 ? "LINE: " + std::to_string(line) : "") << "WARNING: " << str << std::endl;
 	}
-	void error(const std::string &str) noexcept {
-		std::cout << "ERROR: " << str << std::endl;
+	void error(const std::string &str, size_t line) noexcept {
+		std::cerr << (line != -1 ? "LINE: " + std::to_string(line) : "") << "ERROR: " << str << std::endl;
 	}
-	void note(const std::string &str) noexcept {
+	void note(const std::string &str, size_t line = -1) noexcept {
 		std::cout << "NOTE: " << str << std::endl;
 	}
 }
@@ -105,36 +114,36 @@ std::string trim(std::string s, const char* t = ws) {
 		return "";
 }
 
-bool string_is_wrapped(std::string str, size_t substr_begin, size_t substr_end, char c) {
-	if (str.size() > 1) {
-		if (substr_begin != 0) {
-			if (substr_end != str.size()-1) {
-				if (str[substr_begin-1] == c && str[substr_end+1] == c ) {
-					return true;
-				} else {
-					return false;
-				}
-			} else {
-				if (str[substr_begin-1] == c) {
-					return true;
-				}
-			}
-		} else {
-			if (substr_end != str.size()-1) {
-				return false;
-			} else {
-				if (str[substr_end+1] == c) {
-					return true;
-				} else {
-					return false;
-				}
-			}
-		}
-	} else {
-		return false;
-	}
-	return false;
-}
+// bool string_is_wrapped(std::string str, size_t substr_begin, size_t substr_end, char c) {
+// 	if (str.size() > 1) {
+// 		if (substr_begin != 0) {
+// 			if (substr_end != str.size()-1) {tok.insert(tok.begin()+1, '')
+// 				if (str[substr_begin-1] == c && str[substr_end+1] == c ) {
+// 					return true;
+// 				} else {
+// 					return false;
+// 				}
+// 			} else {
+// 				if (str[substr_begin-1] == c) {
+// 					return true;
+// 				}
+// 			}
+// 		} else {
+// 			if (substr_end != str.size()-1) {
+// 				return false;
+// 			} else {
+// 				if (str[substr_end+1] == c) {
+// 					return true;
+// 				} else {
+// 					return false;
+// 				}
+// 			}
+// 		}
+// 	} else {
+// 		return false;
+// 	}
+// 	return false;
+// }
 
 std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 	std::vector<std::string> ret;
@@ -290,6 +299,12 @@ std::string get_string_literal(const std::vector<std::string> &toks, std::vector
 	return ret;
 }
 
+bool is_number(const std::string &s) {
+    std::string::const_iterator it = s.begin();
+    while (it != s.end() && std::isdigit(*it)) ++it;
+    return !s.empty() && it == s.end();
+}
+
 namespace specfic_actions {
 	void math_token(std::vector<std::string>::iterator tok_it) {
 		std::string cmd;
@@ -356,8 +371,6 @@ int main(int argc, char *argv[]) {
 		line_number++;
 		l = trim(l);
 		if (!l.empty()) {
-			out.push_back("\n");
-
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
 
@@ -393,8 +406,8 @@ int main(int argc, char *argv[]) {
 				//tok_it->erase(tok_it->begin());
 				//tok_it->erase(tok_it->end()-1);
 				_us_ltoks.erase(tok_it);
-				tok_it->insert(tok_it->begin(), '[');
-				tok_it->insert(tok_it->end(), ']');
+				tok_it->insert(tok_it->begin(), '(');
+				tok_it->insert(tok_it->end(), ')');
 				commit(_us_ltoks);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("*") {
@@ -496,7 +509,13 @@ int main(int argc, char *argv[]) {
 					get_register("rdi").occupied = false;
 				}
 			} WHILE_FIND_TOKEN_END
-		}	
+
+			for (std::string &tok : _us_ltoks) { // Put '$' infront of integer literal.
+				if (is_number(tok)) {
+					tok = '$' + tok;
+				}
+			}
+		}
 	}
 
 	for (const std::string &str : out) {
@@ -506,7 +525,7 @@ int main(int argc, char *argv[]) {
 	read.close();
 	write.close();
 
-	system(((std::string)"nasm -felf64 rcout.asm && ld rcout.o && ./a.out").c_str());
+	//system(((std::string)"nasm -felf64 rcout.asm && ld rcout.o && ./a.out").c_str());
 	//system(((std::string)"rm " + argv[2] + ".asm").c_str());
 	system(((std::string)"rm rcout.o").c_str());
 
