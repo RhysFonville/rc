@@ -1,9 +1,23 @@
-res ch c 1
-def ch input_prompt "Enter a character: "
-def ch output_prompt "Your new character is: "
-1 < input_prompt 19
-0 > c 1
-^c = ^c + 1
-1 < output_prompt 23
-1 < c 1
-exit 0
+def ch input_prompt "Enter two single-digit numbers: "
+>w 1 input_prompt 32
+
+res int n1
+res int n2
+>r 0 n1 1
+>r 0 n2 1
+
+res int _add
+res int _sub
+res int _mul
+// res int _div
+
+^_add = ^n1 + ^n2
+^_sub = ^n1 - ^n2
+^_mul = ^n1 * ^n2
+// ^_div = ^n1 / ^n2
+
+>w 1 _add 2
+>w 1 _sub 2
+>w 1 _mul 2
+// >w 1 _div 2 
+>e 0

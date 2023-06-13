@@ -1,5 +1,4 @@
 #include <string>
-#include <type_traits>
 #include <vector>
 
 class Token {
@@ -11,7 +10,7 @@ public:
 };
 
 static std::vector<Token> tokens = {
-	Token(" "), Token("("), Token(")"), Token("\""), Token("*"), Token("/"), Token("%"), Token("+"),
+	Token(" "), Token("("), Token(")"), Token("\""), Token("//"), Token("*"), Token("/"), Token("%"), Token("+"),
 	Token("-"), Token(">"), Token("<"), Token("^"), Token("=")
 };
 

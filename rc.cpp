@@ -67,6 +67,23 @@ const std::string SYS_EXIT  = "60";
 const std::string STDIN     = "0";
 const std::string STDOUT    = "1";
 
+namespace clog {
+	const std::string MISSING_TOKEN = "Missing token.";
+
+	void out(const std::string &str) noexcept {
+		std::cerr << "WARNING: " << str << std::endl;
+	}
+	void warn(const std::string &str) noexcept {
+		std::cerr << "WARNING: " << str << std::endl;
+	}
+	void error(const std::string &str) noexcept {
+		std::cout << "ERROR: " << str << std::endl;
+	}
+	void note(const std::string &str) noexcept {
+		std::cout << "NOTE: " << str << std::endl;
+	}
+}
+
 // trim from end of string (right)
 std::string rtrim(std::string s, const char* t = ws) {
 	s.erase(s.find_last_not_of(t) + 1);
@@ -118,48 +135,43 @@ bool string_is_wrapped(std::string str, size_t substr_begin, size_t substr_end, 
 	return false;
 }
 
-std::vector<std::string> split(const std::string &str) {
+std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 	std::vector<std::string> ret;
+	std::vector<bool> ret_is_token;
 
-	const size_t str_end = str.length()-1;
+	ret.push_back(str);
+	ret_is_token.push_back(false);
 
-	size_t substr_begin = 0;
-	size_t substr_end = str_end;
+	for (const Token &token : tokens) {
+		int j = 0;
+		for (int i = 0; i < ret.size(); i++) {
+			if (!ret_is_token[i]) {
+				std::string chunk = ret[i];
+				size_t token_index = chunk.find(token.token);
+				if (token_index != std::string::npos) {
+					ret.erase(ret.begin()+i);
+					ret_is_token.erase(ret_is_token.begin()+i);
 
-	bool found_token;
-	do {
-        found_token = false; 
-		size_t pos = std::string::npos;
-		Token token_found;
-		for (const Token &token : tokens) {
-			size_t find_pos = str.find(token.token, substr_begin);
-			if (find_pos != std::string::npos) {
-				if (find_pos < pos) {
-					token_found = token;
-					pos = find_pos;
+					std::string sub = chunk.substr(0, token_index);
+					if (!sub.empty()) {
+						ret.insert(ret.begin()+i++, chunk.substr(0, token_index));
+						ret_is_token.insert(ret_is_token.begin()+(i-1), false);
+					}
+
+					ret.insert(ret.begin()+i++, token.token);
+					ret_is_token.insert(ret_is_token.begin()+(i-1), true);
+
+					int begin = token_index+token.token.size();
+					sub = chunk.substr(begin);
+					if (!sub.empty()) {
+						ret.insert(ret.begin()+i, sub);
+						ret_is_token.insert(ret_is_token.begin()+i, false);
+					}
 				}
 			}
+			i = j;
+			j++;
 		}
-		
-		if (pos != std::string::npos) {
-			substr_end = pos;
-			if (substr_end == substr_begin)
-				substr_end++;
-				
-			//if ((token_found.is_word && !string_is_wrapped(str, substr_begin, substr_end, ' ')) ||
-			//	!token_found.is_word) {
-				ret.push_back(str.substr(substr_begin, substr_end-substr_begin));
-			//}
-			substr_begin = substr_end;
-			substr_end = str_end+1;
-			
-			found_token = true;
-		}
-	} while (found_token);
-
-	std::string leftover = str.substr(substr_begin);
-	if (!leftover.empty()) {
-		ret.push_back(leftover);
 	}
 	
 	std::vector<std::string>::const_iterator find_quote;
@@ -264,6 +276,19 @@ Register & get_register(const std::string &str) {
 	return NULL_REG;
 }
 
+std::string get_string_literal(const std::vector<std::string> &toks, std::vector<std::string>::iterator index, bool with_quotes = true) { // Not actually used but I'm keeping it
+	std::string ret = "";
+	for (index++; *index != "\""; index++) {
+		ret += *index;
+	}
+	if (with_quotes) {
+		ret = toks[0] + ret;
+		ret += *index;
+	}
+
+	return ret;
+}
+
 namespace specfic_actions {
 	void math_token(std::vector<std::string>::iterator tok_it) {
 		std::string cmd;
@@ -288,8 +313,19 @@ namespace specfic_actions {
 			out.push_back(cmd + ' ' + lhs.name + ", " + rhs.name + '\n');
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
 			lhs.occupied = true;
+			rhs.occupied = false;
 		} else if (cmd == "mul" || cmd == "div") {
+			Register &lhs = get_available_register();
+			lhs.occupied = true;
+			Register &rhs = get_available_register();
+			lhs.occupied = true;
 			
+			out.push_back("mov " + lhs.name + ", " + *(tok_it-1) + '\n');
+			out.push_back("mov " + rhs.name + ", " + *(tok_it+1) + '\n');
+			out.push_back(cmd + ' ' + lhs.name + '\n');
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
+			lhs.occupied = true;
+			rhs.occupied = false;
 		}
 	}
 }
@@ -308,8 +344,8 @@ int main(int argc, char *argv[]) {
 	
 	registers.push_back(Register());
 
-	std::vector<std::string>::iterator data_marker = out.begin();
-	std::vector<std::string>::iterator bss_marker = out.begin()+1;
+	size_t data_marker = 0;
+	size_t bss_marker = 1;
 	
 	std::vector<std::string>::iterator tok_it;
 
@@ -322,6 +358,16 @@ int main(int argc, char *argv[]) {
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
 
+			// no clue why I have to do any of this
+			// data_marker = 0;
+			// bss_marker = 0;
+			// while (out[data_marker] != "section .data\n") {
+			// 	data_marker++;
+			// }
+ 			// while (out[bss_marker] != "section .bss\n") {
+			// 	bss_marker++;
+			// }
+
 			//for (std::vector<std::string>::iterator it = _us_ltoks.begin(); it != _us_ltoks.end(); it++) {
 			//	if (get_var(*it) != Variable()) {
 			//		it->insert(it->begin(), '[');
@@ -330,6 +376,12 @@ int main(int argc, char *argv[]) {
 			//}
 			//commit(_us_ltoks);
 			
+			WHILE_US_FIND_TOKEN("//") {
+				int i = std::distance(_us_ltoks.begin(), tok_it);
+				while ( i < _us_ltoks.size()) {
+					_us_ltoks.erase(_us_ltoks.begin()+i);
+				}
+			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
 			} WHILE_FIND_TOKEN_END
@@ -357,14 +409,6 @@ int main(int argc, char *argv[]) {
 			WHILE_US_FIND_TOKEN("-") {
 				specfic_actions::math_token(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("exit") {
-				out.push_back("mov rax, " + SYS_EXIT + '\n');
-				out.push_back("mov rdi, " + *(tok_it+1) + '\n');
-				out.push_back("syscall\n");
-
-				get_register("rax").occupied = false;
-				get_register("rdi").occupied = false;
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("def") {
 				std::string str = *(tok_it+2)+": ";
 				std::string type = *(tok_it+1);
@@ -382,8 +426,7 @@ int main(int argc, char *argv[]) {
 					str += combine_toks(_us_ltoks, tok_it+3, _us_ltoks.end());
 				}
 
-				out.insert(data_marker, str+'\n');
-				data_marker++;
+				out.insert(out.begin()+data_marker+1, str+'\n');
 				bss_marker++;
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("res") {
@@ -403,40 +446,52 @@ int main(int argc, char *argv[]) {
 					str += *(tok_it+3);
 				}
 
-				out.insert(bss_marker+1, str+'\n');
-				bss_marker++;
-				data_marker++;
+				out.insert(out.begin()+bss_marker+1, str+'\n');
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("=") {
-				out.push_back("mov " + *(tok_it-1) + ", " + *(tok_it+1) + '\n');
-
-				if (Register reg = get_register(*(tok_it+1)); reg != NULL_REG) {
+				std::string rhs = *(tok_it+1);
+				if (Register rhs_reg = get_register(*(tok_it+1)); rhs_reg != NULL_REG) {
+					rhs_reg.occupied = false;
+				} else {
+					Register reg = get_available_register();
+					out.push_back("mov " + reg.name + ", " + rhs + '\n');
+					rhs = reg.name;
 					reg.occupied = false;
 				}
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("<") {
-				out.push_back("mov rax, " + SYS_WRITE + '\n');
-				out.push_back("mov rdi, " + *(tok_it-1) + '\n');
-				out.push_back("mov rsi, " + *(tok_it+1) + '\n');
-				out.push_back("mov rdx, " + *(tok_it+2) + '\n');
-				out.push_back("syscall\n");
 				
-				get_register("rax").occupied = false;
-				get_register("rdi").occupied = false;
-				get_register("rsi").occupied = false;
-				get_register("rdx").occupied = false;
+				out.push_back("mov " + *(tok_it-1) + ", " + rhs + '\n');
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
-				out.push_back("mov rax, " + SYS_READ + '\n');
-				out.push_back("mov rdi, " + *(tok_it-1) + '\n');
-				out.push_back("mov rsi, " + *(tok_it+1) + '\n');
-				out.push_back("mov rdx, " + *(tok_it+2) + '\n');
-				out.push_back("syscall\n");
+				if (*(tok_it+1) == "w") { // WRITE
+					out.push_back("mov rax, " + SYS_WRITE + '\n');
+					out.push_back("mov rdi, " + *(tok_it+2) + '\n');
+					out.push_back("mov rsi, " + *(tok_it+3) + '\n');
+					out.push_back("mov rdx, " + *(tok_it+4) + '\n');
+					out.push_back("syscall\n");
+					
+					get_register("rax").occupied = false;
+					get_register("rdi").occupied = false;
+					get_register("rsi").occupied = false;
+					get_register("rdx").occupied = false;
+				} else if (*(tok_it+1) == "r") { // READ
+					out.push_back("mov rax, " + SYS_READ + '\n');
+					out.push_back("mov rdi, " + *(tok_it+2) + '\n');
+					out.push_back("mov rsi, " + *(tok_it+3) + '\n');
+					out.push_back("mov rdx, " + *(tok_it+4) + '\n');
+					out.push_back("syscall\n");
 
-				get_register("rax").occupied = false;
-				get_register("rdi").occupied = false;
-				get_register("rsi").occupied = false;
-				get_register("rdx").occupied = false;
+					get_register("rax").occupied = false;
+					get_register("rdi").occupied = false;
+					get_register("rsi").occupied = false;
+					get_register("rdx").occupied = false;
+				} else if (*(tok_it+1) == "e") { // EXIT
+					out.push_back("mov rax, " + SYS_EXIT + '\n');
+					out.push_back("mov rdi, " + *(tok_it+2) + '\n');
+					out.push_back("syscall\n");
+
+					get_register("rax").occupied = false;
+					get_register("rdi").occupied = false;
+				}
 			} WHILE_FIND_TOKEN_END
 		}	
 	}
