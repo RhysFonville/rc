@@ -27,8 +27,8 @@ struct Register {
 	std::string name;
 	bool occupied;
 	
-	Register(const std::string &name) : name(name), occupied(false) { }
-	Register() : name(""), occupied(false) { }
+	Register(const std::string &name) : name('%' + name), occupied(false) { }
+	Register() : name("%"), occupied(false) { }
 
 	bool operator==(const Register &reg) const noexcept {
 		return (
@@ -49,8 +49,9 @@ std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
 std::vector<Register> registers = {
-	{"rbx"}, {"rcx"}, {"rsp"}, {"rbp"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
-	{"rax"}, {"rdi"}, {"rsi"}, {"rdx"}, {"r10"}, {"r8"}, {"r9"} // ARGUMENT REGISTERS
+	{"r9"}, {"r10"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
+	{"rax"}, {"rbx"}, {"rcx"}, {"rdx"}, {"rsi"}, {"rdi"}, // ARGUMENT REGISTERS
+	{"rsp"}, {"rbp"} // STACK/BASE POINTER
 };
 
 #define NULL_REG registers.back()
@@ -355,6 +356,8 @@ int main(int argc, char *argv[]) {
 		line_number++;
 		l = trim(l);
 		if (!l.empty()) {
+			out.push_back("\n");
+
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
 
