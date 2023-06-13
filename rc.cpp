@@ -357,9 +357,9 @@ int main(int argc, char *argv[]) {
 	std::ofstream write;
 	write.open("rcout.s", std::ofstream::out | std::ios::trunc);
 	
-	out.push_back("globl main\n");
 	out.push_back(".text\n");
-	out.push_back("main:\n");	
+	out.push_back(".globl _start\n");
+	out.push_back("_start:\n");	
 	
 	registers.push_back(Register());
 	
@@ -521,7 +521,7 @@ int main(int argc, char *argv[]) {
 	read.close();
 	write.close();
 
-	system(((std::string)"as rcout.s && ld rcout.o && ./a.out").c_str());
+	system(((std::string)"as rcout.s -o rcout.o && ld rcout.o && ./a.out").c_str());
 	//system(((std::string)"rm " + argv[2] + ".asm").c_str());
 	system(((std::string)"rm rcout.o").c_str());
 
