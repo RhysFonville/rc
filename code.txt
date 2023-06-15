@@ -1,1 +1,9 @@
+str s "Hello, World!\n"
+>w 1 s 14
+
+int num 5
+^num = ^num + 5
+
+>w 1 num 1
+
 >e 0
