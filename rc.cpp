@@ -74,13 +74,15 @@ std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
 std::vector<Register> registers = {
-	{"rbx"}, {"rcx"}, {"rsp"}, {"rbp"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
-	{"rax"}, {"rdi"}, {"rsi"}, {"rdx"}, {"r10"}, {"r8"}, {"r9"} // ARGUMENT REGISTERS
+	{"rbx"}, {"rcx"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
+	{"rax"}, {"rdi"}, {"rsi"}, {"rdx"}, {"r10"}, {"r8"}, {"r9"}, // ARGUMENT REGISTERS
+	{"rsp"}, {"rbp"} // STACK REGISTERS
 };
 
 namespace types {
 	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "byt" };
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
+	const std::vector<unsigned char> sizes = { 4, 8, 8, 8, 2, 1 };
 };
 
 std::vector<std::string> out;
@@ -303,9 +305,9 @@ Register & get_available_register() {
 	return NULL_REG;
 }
 
-Register & get_register(const std::string &str) {
+Register & get_register(std::string str) {
 	for (Register &reg : registers) {
-		if (reg.name == str) return reg;
+		if ((reg.name == str) || (reg.name.substr(1) == str)) return reg;
 	}
 	
 	return NULL_REG;
@@ -359,19 +361,19 @@ namespace specfic_actions {
 			rhs.occupied = true;
 			out.push_back("movq " + prep_asm_str(*(tok_it-1)) +  ", " + lhs.name  + '\n');
 			out.push_back("movq " + prep_asm_str(*(tok_it+1)) +  ", " + rhs.name + '\n');
-			out.push_back(cmd + ' ' + lhs.name + ", " + rhs.name + '\n');
+			out.push_back(cmd + ' ' + rhs.name + ", " + lhs.name + '\n');
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
 			lhs.occupied = true;
 			rhs.occupied = false;
 		} else if (cmd == "mulq" || cmd == "divq") {
-			Register &lhs = get_available_register();
+			Register &lhs = get_register("rax");
 			lhs.occupied = true;
-			Register &rhs = get_available_register();
+			Register &rhs = get_register("rdx");
 			lhs.occupied = true;
 			
 			out.push_back("movq " + prep_asm_str(*(tok_it-1)) + ", " + lhs.name + '\n');
 			out.push_back("movq " + prep_asm_str(*(tok_it+1)) + ", " + rhs.name + '\n');
-			out.push_back(cmd + ' ' + lhs.name + '\n');
+			out.push_back(cmd + ' ' + rhs.name + '\n');
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
 			lhs.occupied = true;
 			rhs.occupied = false;
@@ -385,9 +387,12 @@ int main(int argc, char *argv[]) {
 	std::ofstream write;
 	write.open("rcout.s", std::ofstream::out | std::ios::trunc);
 	
+	// --------- MAIN ---------
 	out.push_back(".text\n");
-	out.push_back(".globl _start\n");
-	out.push_back("_start:\n");	
+	out.push_back(".globl main\n");
+	out.push_back(".type main, @function\n");
+	out.push_back("main:\n");	
+	// ------------------------
 	
 	registers.push_back(Register());
 	
@@ -454,10 +459,14 @@ int main(int argc, char *argv[]) {
 				specfic_actions::math_token(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
-				std::string name = *(tok_it+1) + ":\n";
-				out.insert(out.begin(), name);
+				size_t type_vec_index = from_it(types::types, std::find(types::types.begin(), types::types.end(), *(tok_it))); // Very long, it just gets the asm_type from tok_it
 
-				std::string def_type = types::asm_types[from_it(types::types, std::find(types::types.begin(), types::types.end(), *(tok_it)))]; // Very long, it just gets the asm_type from tok_it
+				out.insert(out.begin(), ".globl " + *(tok_it+1) + '\n');
+				out.insert(out.begin()+1, ".align " + std::to_string(types::sizes[type_vec_index]) + '\n'); // Align the same size as type
+				out.insert(out.begin()+2, ".type " + *(tok_it+1) + ", @object\n");
+				out.insert(out.begin()+3, *(tok_it+1) + ":\n");
+				
+				std::string def_type = types::asm_types[type_vec_index];
 				def_type += ' ';
 
 				if (tok_it+2 == out.end() || (tok_it+2)->empty()) {
@@ -466,7 +475,7 @@ int main(int argc, char *argv[]) {
 					def_type += combine_toks(_us_ltoks, tok_it+2, _us_ltoks.end());
 				}
 
-				out.insert(out.begin()+1, def_type+'\n');
+				out.insert(out.begin()+4, def_type+'\n');
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("=") {
 				std::string rhs = *(tok_it+1);
@@ -516,6 +525,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	// --------- STICK TO TOP OF FILE ---------
+	out.insert(out.begin(), ".data\n");
+	out.insert(out.begin(), ".file \"" + std::string(argv[1]) + "\"\n");
+	// ----------------------------------------
+
 	for (const std::string &str : out) {
 		write << str;
 	}
@@ -523,7 +537,7 @@ int main(int argc, char *argv[]) {
 	read.close();
 	write.close();
 
-	system(((std::string)"as rcout.s -o rcout.o && ld rcout.o && ./a.out").c_str());
+	system(((std::string)"as rcout.s -o rcout.o && ld -e main rcout.o && ./a.out").c_str());
 	//system(((std::string)"rm " + argv[2] + ".asm").c_str());
 	system(((std::string)"rm rcout.o").c_str());
 
