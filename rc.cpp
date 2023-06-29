@@ -84,6 +84,7 @@ namespace types {
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
 	const std::vector<unsigned char> sizes = { 4, 8, 8, 8, 2, 1 };
 };
+const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
 
 std::vector<std::string> out;
 
@@ -435,27 +436,12 @@ int main(int argc, char *argv[]) {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("^") {
-				//_us_ltoks.erase(tok_it);
-				//tok_it->erase(tok_it->begin());
-				//tok_it->erase(tok_it->end()-1);
 				_us_ltoks.erase(tok_it);
 				tok_it->insert(tok_it->begin(), '(');
 				tok_it->insert(tok_it->end(), ')');
 				commit(_us_ltoks);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("*") {
-				specfic_actions::math_token(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("/") {
-				specfic_actions::math_token(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("%") {
-				specfic_actions::math_token(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("+") {
-				specfic_actions::math_token(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("-") {
+			WHILE_US_FIND_TOKENS(math_symbols) {
 				specfic_actions::math_token(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
