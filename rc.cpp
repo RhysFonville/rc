@@ -9,7 +9,7 @@
 #define NULL_REG registers.back()
 
 #define ASSERT_NULL_TOKS(min_offset, max_offset) \
-for (std::vector<std::string>::iterator it = tok_it-min_offset; it != tok_it+max_offset+1; it++) { \
+for (TokIt it = tok_it-min_offset; it != tok_it+max_offset+1; it++) { \
 	if (it == nullptr) { \
 		clog::error("Expecting a token", line_number); \
 	} \
@@ -47,6 +47,8 @@ for (std::vector<std::string>::iterator it = tok_it-min_offset; it != tok_it+max
 	while (true) { \
 		tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
 		if (tok_it != _us_ltoks.end())
+
+using TokIt = std::vector<std::string>::iterator;
 
 struct Register {
 	std::string name;
@@ -314,7 +316,7 @@ Register & get_register(std::string str) {
 	return NULL_REG;
 }
 
-std::string get_string_literal(const std::vector<std::string> &toks, std::vector<std::string>::iterator index, bool with_quotes = true) { // Not actually used but I'm keeping it
+std::string get_string_literal(const std::vector<std::string> &toks, TokIt index, bool with_quotes = true) { // Not actually used but I'm keeping it
 	std::string ret = "";
 	for (index++; *index != "\""; index++) {
 		ret += *index;
@@ -341,8 +343,16 @@ std::string prep_asm_str(std::string str) {
 	return str;
 }
 
-namespace specfic_actions {
-	void math_token(std::vector<std::string>::iterator tok_it) {
+#pragma region token_functions
+namespace token_function {
+	void dereference(TokIt tok_it) {
+		_us_ltoks.erase(tok_it);
+		tok_it->insert(tok_it->begin(), '(');
+		tok_it->insert(tok_it->end(), ')');
+		commit(_us_ltoks);
+	}
+
+	void math(TokIt tok_it) {
 		std::string cmd;
 		if (*tok_it == "*") {
 			cmd = "mulq";
@@ -380,7 +390,75 @@ namespace specfic_actions {
 			rhs.occupied = false;
 		}
 	}
+
+	void variable_declaration(TokIt tok_it) {
+		size_t type_vec_index = from_it(types::types, std::find(types::types.begin(), types::types.end(), *(tok_it))); // Very long, it just gets the asm_type from tok_it
+
+		out.insert(out.begin(), ".globl " + *(tok_it+1) + '\n');
+		out.insert(out.begin()+1, ".align " + std::to_string(types::sizes[type_vec_index]) + '\n'); // Align the same size as type
+		out.insert(out.begin()+2, ".type " + *(tok_it+1) + ", @object\n");
+		out.insert(out.begin()+3, *(tok_it+1) + ":\n");
+		
+		std::string def_type = types::asm_types[type_vec_index];
+		def_type += ' ';
+
+		if (tok_it+2 == out.end() || (tok_it+2)->empty()) {
+			def_type += "1";
+		} else {
+			def_type += combine_toks(_us_ltoks, tok_it+2, _us_ltoks.end());
+		}
+
+		out.insert(out.begin()+4, def_type+'\n');
+	}
+
+	void equals(TokIt tok_it) {
+		std::string rhs = *(tok_it+1);
+		if (Register rhs_reg = get_register(*(tok_it+1)); rhs_reg != NULL_REG) {
+			rhs_reg.occupied = false;
+		} else {
+			Register reg = get_available_register();
+			out.push_back("movq " + prep_asm_str(rhs) + ", " + reg.name + '\n');
+			rhs = reg.name;
+			reg.occupied = false;
+		}
+		
+		out.push_back("movq " + prep_asm_str(rhs) + ", " + prep_asm_str(*(tok_it-1)) + '\n');
+	}
+
+	void base_functions(TokIt tok_it) {
+		if (*(tok_it+1) == "w") { // WRITE
+			out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+3)) + ", %rsi" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+4)) + ", %rdx" + '\n');
+			out.push_back("syscall\n");
+			
+			get_register("rax").occupied = false;
+			get_register("rdi").occupied = false;
+			get_register("rsi").occupied = false;
+			get_register("rdx").occupied = false;
+		} else if (*(tok_it+1) == "r") { // READ
+			out.push_back("movq " + SYS_READ + ", %rax" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+3)) + ", %rsi" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+4)) + ", %rdx" + '\n');
+			out.push_back("syscall\n");
+
+			get_register("rax").occupied = false;
+			get_register("rdi").occupied = false;
+			get_register("rsi").occupied = false;
+			get_register("rdx").occupied = false;
+		} else if (*(tok_it+1) == "e") { // EXIT
+			out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
+			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
+			out.push_back("syscall\n");
+
+			get_register("rax").occupied = false;
+			get_register("rdi").occupied = false;
+		}
+	}
 }
+#pragma endregion token_functions
 
 int main(int argc, char *argv[]) {
 	std::ifstream read;
@@ -397,7 +475,7 @@ int main(int argc, char *argv[]) {
 	
 	registers.push_back(Register());
 	
-	std::vector<std::string>::iterator tok_it;
+	TokIt tok_it;
 
 	size_t line_number = 0;
 	std::string l;
@@ -407,24 +485,6 @@ int main(int argc, char *argv[]) {
 		if (!l.empty()) {
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
-
-			// no clue why I have to do any of this
-			// data_marker = 0;
-			// bss_marker = 0;
-			// while (out[data_marker] != "section .data\n") {
-			// 	data_marker++;
-			// }
- 			// while (out[bss_marker] != "section .bss\n") {
-			// 	bss_marker++;
-			// }
-
-			//for (std::vector<std::string>::iterator it = _us_ltoks.begin(); it != _us_ltoks.end(); it++) {
-			//	if (get_var(*it) != Variable()) {
-			//		it->insert(it->begin(), '[');
-			//		it->insert(it->end(), ']');
-			//	}
-			//}
-			//commit(_us_ltoks);
 			
 			WHILE_US_FIND_TOKEN("//") {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
@@ -436,77 +496,19 @@ int main(int argc, char *argv[]) {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("^") {
-				_us_ltoks.erase(tok_it);
-				tok_it->insert(tok_it->begin(), '(');
-				tok_it->insert(tok_it->end(), ')');
-				commit(_us_ltoks);
+				token_function::dereference(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
-				specfic_actions::math_token(tok_it);
+				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
-				size_t type_vec_index = from_it(types::types, std::find(types::types.begin(), types::types.end(), *(tok_it))); // Very long, it just gets the asm_type from tok_it
-
-				out.insert(out.begin(), ".globl " + *(tok_it+1) + '\n');
-				out.insert(out.begin()+1, ".align " + std::to_string(types::sizes[type_vec_index]) + '\n'); // Align the same size as type
-				out.insert(out.begin()+2, ".type " + *(tok_it+1) + ", @object\n");
-				out.insert(out.begin()+3, *(tok_it+1) + ":\n");
-				
-				std::string def_type = types::asm_types[type_vec_index];
-				def_type += ' ';
-
-				if (tok_it+2 == out.end() || (tok_it+2)->empty()) {
-					def_type += "1";
-				} else {
-					def_type += combine_toks(_us_ltoks, tok_it+2, _us_ltoks.end());
-				}
-
-				out.insert(out.begin()+4, def_type+'\n');
+				token_function::variable_declaration(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("=") {
-				std::string rhs = *(tok_it+1);
-				if (Register rhs_reg = get_register(*(tok_it+1)); rhs_reg != NULL_REG) {
-					rhs_reg.occupied = false;
-				} else {
-					Register reg = get_available_register();
-					out.push_back("movq " + prep_asm_str(rhs) + ", " + reg.name + '\n');
-					rhs = reg.name;
-					reg.occupied = false;
-				}
-				
-				out.push_back("movq " + prep_asm_str(rhs) + ", " + prep_asm_str(*(tok_it-1)) + '\n');
+				token_function::equals(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
-				if (*(tok_it+1) == "w") { // WRITE
-					out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+3)) + ", %rsi" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+4)) + ", %rdx" + '\n');
-					out.push_back("syscall\n");
-					
-					get_register("rax").occupied = false;
-					get_register("rdi").occupied = false;
-					get_register("rsi").occupied = false;
-					get_register("rdx").occupied = false;
-				} else if (*(tok_it+1) == "r") { // READ
-					out.push_back("movq " + SYS_READ + ", %rax" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+3)) + ", %rsi" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+4)) + ", %rdx" + '\n');
-					out.push_back("syscall\n");
-
-					get_register("rax").occupied = false;
-					get_register("rdi").occupied = false;
-					get_register("rsi").occupied = false;
-					get_register("rdx").occupied = false;
-				} else if (*(tok_it+1) == "e") { // EXIT
-					out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
-					out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
-					out.push_back("syscall\n");
-
-					get_register("rax").occupied = false;
-					get_register("rdi").occupied = false;
-				}
+				token_function::base_functions(tok_it);
 			} WHILE_FIND_TOKEN_END
 		}
 	}
