@@ -1,10 +1,13 @@
 str s "Hello, World!\n"
->w 1 s 14
-
 byt num 4
-^num = ^num / 2
+
+#do_math
+^num = ^num * 2
 ^num = ^num + 48
-
 >w 1 num 1
+#>
 
+#main
+>w 1 s 14
+do_math
 >e 0

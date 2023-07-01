@@ -457,6 +457,21 @@ namespace token_function {
 			get_register("rdi").occupied = false;
 		}
 	}
+	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::string &current_function) {
+		std::string func_name = *(tok_it+1);
+		out.push_back(".globl " + func_name + '\n');
+		out.push_back(".type " + func_name + ", @function\n");
+		out.push_back(func_name + ":\n");
+
+		functions.push_back(func_name);
+		current_function = func_name;
+	}
+	void function_call(TokIt tok_it) {
+		out.push_back("call " + *tok_it + '\n');
+	}
+	void function_return(TokIt tok_it) {
+		out.push_back("ret\n");
+	}
 }
 #pragma endregion token_functions
 
@@ -468,14 +483,14 @@ int main(int argc, char *argv[]) {
 	
 	// --------- MAIN ---------
 	out.push_back(".text\n");
-	out.push_back(".globl main\n");
-	out.push_back(".type main, @function\n");
-	out.push_back("main:\n");	
 	// ------------------------
 	
 	registers.push_back(Register());
 	
 	TokIt tok_it;
+
+	std::vector<std::string> functions = { };
+	std::string current_function = "";
 
 	size_t line_number = 0;
 	std::string l;
@@ -509,6 +524,17 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("#") {
+				token_function::function_declaration(tok_it, functions, current_function);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("#>") {
+				token_function::function_return(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKENS(functions) {
+				if (*(tok_it-1) != "#") {
+					token_function::function_call(tok_it);
+				}
 			} WHILE_FIND_TOKEN_END
 		}
 	}

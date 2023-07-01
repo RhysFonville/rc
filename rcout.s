@@ -11,17 +11,12 @@ num:
 s:
 .asciz "Hello, World!\n"
 .text
-.globl main
-.type main, @function
-main:
-movq $1, %rax
-movq $1, %rdi
-movq $s, %rsi
-movq $14, %rdx
-syscall
+.globl do_math
+.type do_math, @function
+do_math:
 movq (num), %rax
 movq $2, %rdx
-divq %rdx
+mulq %rdx
 movq %rax, (num)
 movq (num), %rbx
 movq $48, %rcx
@@ -32,6 +27,16 @@ movq $1, %rdi
 movq $num, %rsi
 movq $1, %rdx
 syscall
+ret
+.globl main
+.type main, @function
+main:
+movq $1, %rax
+movq $1, %rdi
+movq $s, %rsi
+movq $14, %rdx
+syscall
+call do_math
 movq $60, %rax
 movq $0, %rdi
 syscall
