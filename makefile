@@ -1,5 +1,10 @@
 CC = g++
 OBJ = rc.o Token.o
 
-asm:
-	nasm -felf64 rcout.asm && ld rcout.o && ./a.out
+.PHONY: rc clean
+
+rc: main.cpp
+	${CC} -g -std=c++17 main.cpp Token.h -o rc 
+
+clean:
+	rm rcout rcout.s a.out

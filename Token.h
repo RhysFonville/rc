@@ -11,6 +11,6 @@ public:
 
 static std::vector<Token> tokens = {
 	Token(" "), Token("#>"), Token("#"), Token("("), Token(")"), Token("\""), Token("//"), Token("*"), Token("/"), Token("%"), Token("+"),
-	Token("-"), Token(">"), Token("<"), Token("^"), Token("=")
+	Token("-"), Token(">"), Token("<"), Token("^"), Token("&"), Token("=")
 };
 

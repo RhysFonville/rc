@@ -1,42 +1,37 @@
 .file "code.txt"
 .data
-.globl num
-.align 1
-.type num, @object
-num:
-.byte 4
-.globl s
-.align 8
-.type s, @object
-s:
-.asciz "Hello, World!\n"
 .text
-.globl do_math
-.type do_math, @function
-do_math:
-movq (num), %rax
-movq $2, %rdx
-mulq %rdx
-movq %rax, (num)
-movq (num), %rbx
-movq $48, %rcx
-addq %rcx, %rbx
-movq %rbx, (num)
+.globl print
+.type print, @function
+print:
+push %rbp
+mov %rsp, %rbp
+subq $4, %rsp
+movq $48, -4(%rbp)
+leaq -4(%rbp), %rbx
 movq $1, %rax
 movq $1, %rdi
-movq $num, %rsi
+movq %rbx, %rsi
 movq $1, %rdx
 syscall
+movl $0, %eax
+leave
 ret
 .globl main
 .type main, @function
 main:
+push %rbp
+mov %rsp, %rbp
+call print
+leaq -4(%rbp), %rbx
 movq $1, %rax
 movq $1, %rdi
-movq $s, %rsi
-movq $14, %rdx
+movq %rbx, %rsi
+movq $1, %rdx
 syscall
-call do_math
 movq $60, %rax
-movq $0, %rdi
+movq $2, %rdi
 syscall
+movl $0, %eax
+leave
+ret
