@@ -1,11 +1,2 @@
-#print
-int i 48
->w 1 &i 1
-#>
-
 #main
-print
->w 1 &i 1
->e 2
-#>
-
+#> 0

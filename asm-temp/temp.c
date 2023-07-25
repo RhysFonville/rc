@@ -1,8 +1,12 @@
 #include <unistd.h>
 
-int main() {
-	int i = 10;
+int babi() {
+	int i = 42;
 	write(1, &i, 1);
-	return 0;
+	return i;
 }
 
+int main() {
+	int j = babi();
+	return 0;
+}

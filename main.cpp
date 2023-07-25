@@ -9,15 +9,6 @@
 
 #define NULL_REG registers.back()
 
-#define ASSERT_NULL_TOKS(min_offset, max_offset) \
-for (TokIt it = tok_it-min_offset; it != tok_it+max_offset+1; it++) { \
-	if (it == nullptr) { \
-		clog::error("Expecting a token", line_number); \
-	} \
-}
-
-#define ASSERT_NULL_TOK(offset) ASSERT_NULL_TOKS(offset, offset)
-
 #define WHILE_FIND_TOKEN(tok) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #tok) == disallowed_toks.end()) { \
 		tok_it = _ltoks.begin(); \
@@ -424,8 +415,9 @@ namespace token_function {
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(-1);
 		} else {
+			
 			current_stack_size += types::sizes[type_vec_index];
-			out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
+			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
 			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n");
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
@@ -435,6 +427,10 @@ namespace token_function {
 
 	void equals(TokIt tok_it) {
 		std::string rhs = *(tok_it+1);
+		
+		std::cout << rhs << std::endl;
+		std::cout << *(tok_it-1) << std::endl;
+		
 		if (Register rhs_reg = get_register(*(tok_it+1)); rhs_reg != NULL_REG) {
 			rhs_reg.occupied = false;
 		} else {
@@ -479,24 +475,38 @@ namespace token_function {
 			get_register("rdi").occupied = false;
 		}
 	}
-	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::string &current_function) {
+	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
 		std::string func_name = *(tok_it+1);
 		out.push_back(".globl " + func_name + '\n');
 		out.push_back(".type " + func_name + ", @function\n");
 		out.push_back(func_name + ":\n");
-		out.push_back("push %rbp\n");
-		out.push_back("mov %rsp, %rbp\n");
-		
+		out.push_back("pushq %rbp\n");
+		out.push_back("movq %rsp, %rbp\n");
+		out.push_back("subq $16, %rsp\n");
+
 		functions.push_back(func_name);
+		stack_sizes.push_back(0);
 		current_function = func_name;
 	}
 	void function_call(TokIt tok_it) {
+		out.push_back("movq $0, %rax\n");
 		out.push_back("call " + *tok_it + '\n');
+		//for (std::string tok : _us_ltoks) {
+		//	std::cout << tok << ' ';
+		//}
+		//std::cout << std::endl;
+		commit(replace_tok(_us_ltoks, tok_it, "%rax"));
+		//for (std::string tok : _us_ltoks) {
+		//	std::cout << tok << ' ';
+		//}
+		//std::cout << std::endl;
 	}
-	void function_return(TokIt tok_it) {
-		out.push_back("movl $0, %eax\n");
+	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
+		out.push_back("movq " + (tok_it+1 != toks.end() ? *(tok_it+1) : "0") + ", %rax\n");
 		out.push_back("leave\n");
 		out.push_back("ret\n");
+		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
+		current_function = "";
 	}
 }
 
@@ -518,8 +528,8 @@ int main(int argc, char *argv[]) {
 	std::vector<int> variable_stack_locations = { };
 
 	std::vector<std::string> functions = { };
+	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
-	int current_stack_size = 0;
 
 	// --------- MAIN ---------
 	out.push_back(".text\n");
@@ -544,15 +554,26 @@ int main(int argc, char *argv[]) {
 					_us_ltoks.erase(_us_ltoks.begin()+i);
 				}
 			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("#") {
+				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKENS(functions) {
+				if (*(tok_it-1) != "#") {
+					token_function::function_call(tok_it);
+				}
+			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
-				token_function::variable_declaration(tok_it, current_function, variable_names, variable_sizes, variable_stack_locations, current_stack_size);
-				disallowed_toks.insert(disallowed_toks.begin(), types::types.begin(), types::types.end());
+				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
+				token_function::variable_declaration(tok_it, current_function, variable_names, variable_sizes, variable_stack_locations, current_function_stack_sizes[func_vec_index]);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(variable_names) {
 				size_t vec_index = from_it(variable_names, std::find(variable_names.begin(), variable_names.end(), *tok_it));
 				if (variable_stack_locations[vec_index] != -1) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
 				}
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("#>") {
+				token_function::function_return(tok_it, _us_ltoks, current_function);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
@@ -571,17 +592,6 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("#") {
-				token_function::function_declaration(tok_it, functions, current_function);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("#>") {
-				token_function::function_return(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(functions) {
-				if (*(tok_it-1) != "#") {
-					token_function::function_call(tok_it);
-				}
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();
