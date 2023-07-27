@@ -1,10 +1,12 @@
-#include <algorithm>
+#include <algorithm> // The problem is with the postfixes (movq, movl and rax, eax)
 #include <clocale>
 #include <iostream>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <climits>
 #include "Token.h"
 
 #define NULL_REG registers.back()
@@ -48,24 +50,60 @@
 using TokIt = std::vector<std::string>::iterator;
 
 struct Register {
-	std::string name;
+	struct Names {
+		std::string q;
+		std::string l;
+		std::string w;
+		std::string bh;
+		std::string bl;
+
+		bool operator==(const Names &reg) const noexcept {
+			return (q == q &&
+					l == l &&
+					w == w &&
+					bh == bh &&
+					bl == bl);
+		}
+
+		bool operator!=(const Names &reg) const noexcept {
+			return (q != q &&
+					l != l &&
+					w != w &&
+					bl != bh &&
+					bl != bl);
+		}
+	} names;
 	bool occupied;
 	
-	Register(const std::string &name) : name('%' + name), occupied(false) { }
-	Register() : name("%"), occupied(false) { }
+	Register(const std::string &q, const std::string &l, const std::string &w, const std::string &bh, const std::string &bl)
+		: names({ '%'+q, '%'+l, '%'+w, '%'+bh, '%'+bl }), occupied(false) { }
+	Register() : names({"%","%","%","%","%"}), occupied(false) { }
 
 	bool operator==(const Register &reg) const noexcept {
 		return (
-			name == reg.name &&
+			names == reg.names &&
 			occupied == reg.occupied
 		);
 	}
 
 	bool operator!=(const Register &reg) const noexcept {
 		return (
-			name != reg.name ||
+			names != reg.names ||
 			occupied != reg.occupied
 		);
+	}
+
+	std::string from_size(int size) {
+		if (size == 1) {
+			return names.bh;
+		} else if (size == 2) {
+			return names.w;	
+		} else if (size == 4) {
+			return names.l;
+		} else if (size == 8) {
+			return names.q;
+		}
+		return "";
 	}
 };
 
@@ -73,15 +111,16 @@ std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
 std::vector<Register> registers = {
-	{"rbx"}, {"rcx"}, {"r11"}, {"r12"}, {"r13"}, {"r14"}, {"r15"},
-	{"rax"}, {"rdi"}, {"rsi"}, {"rdx"}, {"r10"}, {"r8"}, {"r9"}, // ARGUMENT REGISTERS
-	{"rsp"}, {"rbp"} // STACK REGISTERS
+	{"rbx","ebx","ax","ah","al"}, {"r10","r10d","r10w","r10b","r10b"}, {"r11","r11d","r11w","r11b","r11b"}, {"r12","r12d","r12w","r12b","r12b"}, {"r13","r13d","r13w","r13b","r13b"}, {"r14","r14d","r13w","r13b","r13b"}, {"r15","r15d","r15w","r15b","r15b"},
+	{"rax","eax","ax","ah","al"}, {"rdi","edi","di","dil","dil"}, {"rsi","esi","si","sil","sil"}, {"rdx","edx","dx","dl","dh"}, {"rcx","ecx","cx","ch","cl"}, {"r8","r8d","r8w","r8b","r8b"}, {"r9","r8d","r8w","r8b","r8b"}, // SYSCALL REGISTERS
+	{"rsp","esp","sp","spl","spl"}, {"rbp","ebp","bp","bpl"} // STACK REGISTERS
 };
 
 namespace types {
-	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "byt" };
+	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
-	const std::vector<unsigned char> sizes = { 4, 8, 8, 8, 2, 1 };
+	const std::vector<unsigned char> sizes = { 4, 0, 0, 8, 2, 1 };
+	const std::vector<std::string> suffixes = { "l", "X", "X", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
 };
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
 
@@ -89,7 +128,7 @@ std::vector<std::string> out;
 
 using uchar = unsigned char;
 
-constexpr char* const ws = " \t\n\r\f\v";
+const char* const ws = " \t\n\r\f\v";
 
 const std::string SYS_READ  = "$0";
 const std::string SYS_WRITE = "$1";
@@ -298,14 +337,19 @@ std::string combine_toks(const std::vector<std::string>::const_iterator &begin, 
 
 Register & get_available_register() {
 	for (Register &reg : registers) {
-		if (!reg.occupied) return reg;
+		if (!reg.occupied) return reg; 
 	}
+
 	return NULL_REG;
 }
 
 Register & get_register(std::string str) {
 	for (Register &reg : registers) {
-		if ((reg.name == str) || (reg.name.substr(1) == str)) return reg;
+		if ((reg.names.q == str) || (reg.names.q.substr(1) == str)) return reg;
+		if ((reg.names.l == str) || (reg.names.l.substr(1) == str)) return reg;
+		if ((reg.names.w == str) || (reg.names.w.substr(1) == str)) return reg;
+		if ((reg.names.bh == str) || (reg.names.bh.substr(1) == str)) return reg;
+		if ((reg.names.bl == str) || (reg.names.bl.substr(1) == str)) return reg;
 	}
 	
 	return NULL_REG;
@@ -338,6 +382,32 @@ std::string prep_asm_str(std::string str) {
 	return str;
 }
 
+int get_size_of_asm_stack_variable(const std::string &str) {
+	return std::stoi(str.substr(1, str.find('(')));
+}
+
+int get_size_of_number(const std::string &str) {
+	long long number; 
+	if (str[0] == '$') {
+		number = std::stoll(str.substr(1));
+	} else {
+		number = std::stoll(str);	
+	}
+
+	if (number < CHAR_MAX) return 1;
+	if (number < SHRT_MAX) return 2;
+	if (number < INT_MAX) return 4;
+	if (number < LONG_MAX) return 8;
+}
+
+int get_size_of_operand(const std::string &str) {
+	if (str.find("%rbp") != std::string::npos) {
+		return get_size_of_asm_stack_variable(str);
+	} else {
+		return get_size_of_number(str);
+	}
+}
+
 namespace token_function {
 	void dereference(TokIt tok_it) {
 		_us_ltoks.erase(tok_it);
@@ -348,9 +418,9 @@ namespace token_function {
 
 	void address_of(TokIt tok_it) {
 		Register reg = get_available_register();
-		out.push_back("leaq " + *(tok_it+1) + ", " + reg.name + '\n');
+		out.push_back("leaq " + *(tok_it+1) + ", " + reg.names.q + '\n');
 		
-		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg.name));
+		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg.names.q));
 	}
 
 	void math(TokIt tok_it) {
@@ -371,10 +441,20 @@ namespace token_function {
 			lhs.occupied = true;
 			Register &rhs = get_available_register();
 			rhs.occupied = true;
-			out.push_back("movq " + prep_asm_str(*(tok_it-1)) +  ", " + lhs.name  + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+1)) +  ", " + rhs.name + '\n');
+			
+			int lhs_size = get_size_of_operand(*(tok_it-1));
+			int rhs_size = get_size_of_operand(*(tok_it+1));
+			std::string lhs_str = "mov" + types::suffixes[from_it(types::sizes, std::find(types::sizes.begin(), types::sizes.end(), lhs_size))];
+			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs.name  + '\n');
+			std::string rhs_str = "mov" + types::suffixes[from_it(types::sizes, std::find(types::sizes.begin(), types::sizes.end(), rhs_size))];
+			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs.name + '\n');
+			
+			out.push_back(lhs_str);
+			out.push_back(rhs_str);
 			out.push_back(cmd + ' ' + rhs.name + ", " + lhs.name + '\n');
+		
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
+			
 			lhs.occupied = true;
 			rhs.occupied = false;
 		} else if (cmd == "mulq" || cmd == "divq") {
@@ -418,7 +498,9 @@ namespace token_function {
 			
 			current_stack_size += types::sizes[type_vec_index];
 			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
-			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n");
+			std::string str = "mov" + types::suffixes[type_vec_index] + ' ';
+			str += prep_asm_str(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
+			out.push_back(str);
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(-current_stack_size);
@@ -610,7 +692,8 @@ int main(int argc, char *argv[]) {
 	read.close();
 	write.close();
 
-	system(((std::string)"as rcout.s -o rcout.o && ld -e main rcout.o && ./a.out").c_str());
+	system(((std::string)"gcc rcout.s && ./a.out").c_str());
+	
 	system(((std::string)"rm rcout.o").c_str());
 
 	std::cout << std::endl;

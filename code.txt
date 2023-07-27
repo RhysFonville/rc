@@ -1,2 +1,9 @@
+#print
+int c 42
+>w 1 &c 1
+#> c
+
 #main
-#> 0
+int i print
+>e 0
+#>
