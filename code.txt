@@ -1,9 +1,9 @@
-#print
-int c 42
->w 1 &c 1
-#> c
+#babi
+	int i 42
+	>w 1 &i 1
+#>i
 
 #main
-int i print
->e 0
-#>
+	int i babi
+	>e 0
+#>0

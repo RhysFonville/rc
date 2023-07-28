@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <clocale>
+#include <functional>
 #include <iostream>
 #include <fstream>
 #include <iterator>
@@ -7,9 +8,8 @@
 #include <type_traits>
 #include <utility>
 #include <climits>
+#include <optional>
 #include "Token.h"
-
-#define NULL_REG registers.back()
 
 #define WHILE_FIND_TOKEN(tok) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #tok) == disallowed_toks.end()) { \
@@ -66,10 +66,10 @@ struct Register {
 		}
 
 		bool operator!=(const Names &reg) const noexcept {
-			return (q != q &&
-					l != l &&
-					w != w &&
-					bl != bh &&
+			return (q != q ||
+					l != l ||
+					w != w ||
+					bl != bh ||
 					bl != bl);
 		}
 	} names;
@@ -105,7 +105,16 @@ struct Register {
 		}
 		return "";
 	}
+
+	static bool comp_names(std::string name1, std::string name2) {
+		if (name1[0] != '%') name1 = '%' + name1;
+		if (name2[0] != '%') name2 = '%' + name2;
+		
+		return (name1 == name2);
+	}
 };
+
+using RegisterRef = std::optional<std::reference_wrapper<Register>>; 
 
 std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
@@ -341,24 +350,24 @@ std::string combine_toks(const std::vector<std::string>::const_iterator &begin, 
 	return ret;
 }
 
-Register & get_available_register() {
+RegisterRef get_available_register() {
 	for (Register &reg : registers) {
-		if (!reg.occupied) return reg; 
+		if (!reg.occupied) return RegisterRef(reg); 
 	}
 
-	return NULL_REG;
+	return std::nullopt;
 }
 
-Register & get_register(std::string str) {
+RegisterRef get_register(std::string str) {
 	for (Register &reg : registers) {
-		if ((reg.names.q == str) || (reg.names.q.substr(1) == str)) return reg;
-		if ((reg.names.l == str) || (reg.names.l.substr(1) == str)) return reg;
-		if ((reg.names.w == str) || (reg.names.w.substr(1) == str)) return reg;
-		if ((reg.names.bh == str) || (reg.names.bh.substr(1) == str)) return reg;
-		if ((reg.names.bl == str) || (reg.names.bl.substr(1) == str)) return reg;
+		if (reg.comp_names(reg.names.q, str) ||
+			reg.comp_names(reg.names.l, str) ||
+			reg.comp_names(reg.names.w, str) ||
+			reg.comp_names(reg.names.bh, str) ||
+			reg.comp_names(reg.names.bl, str)) return RegisterRef(reg);
 	}
 	
-	return NULL_REG;
+	return std::nullopt;
 }
 
 std::string get_string_literal(const std::vector<std::string> &toks, TokIt index, bool with_quotes = true) { // Not actually used but I'm keeping it
@@ -380,8 +389,8 @@ bool is_number(const std::string &s) {
     return !s.empty() && it == s.end();
 }
 
-std::string prep_asm_str(std::string str) {
-	if (get_register(str) == NULL_REG && str.back() != ')') {
+std::string set_operand_prefix(std::string str) {
+	if (!get_register(str).has_value() && str.back() != ')') {
 		str = '$' + str;
 	}
 
@@ -424,10 +433,10 @@ namespace token_function {
 	}
 
 	void address_of(TokIt tok_it) {
-		Register reg = get_available_register();
-		out.push_back("leaq " + *(tok_it+1) + ", " + reg.names.q + '\n');
+		RegisterRef reg = get_available_register();
+		out.push_back("leaq " + *(tok_it+1) + ", " + reg->get().names.q + '\n');
 		
-		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg.names.q));
+		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg->get().names.q));
 	}
 
 	void math(TokIt tok_it) {
@@ -444,41 +453,41 @@ namespace token_function {
 			cmd = "% not supported yet";
 		}
 		if (cmd == "addq" || cmd == "subq") {
-			Register &lhs = get_available_register();
-			Register &rhs = get_available_register();
+			RegisterRef lhs = get_available_register();
+			RegisterRef rhs = get_available_register();
 			
 			int lhs_size = get_size_of_operand(*(tok_it-1));
 			int rhs_size = get_size_of_operand(*(tok_it+1));
 			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)];
-			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs.from_size(lhs_size)  + '\n';
+			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
 			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)];
-			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs.from_size(rhs_size) + '\n';
+			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + ' ' + rhs.from_size(rhs_size) + ", " + lhs.from_size(lhs_size) + '\n');
+			out.push_back(cmd + ' ' + rhs->get().from_size(rhs_size) + ", " + lhs->get().from_size(lhs_size) + '\n');
 		
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.from_size(lhs_size)));
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(lhs_size)));
 			
-			lhs.occupied = true;
-			rhs.occupied = false;
+			lhs->get().occupied = true;
+			rhs->get().occupied = false;
 		} else if (cmd == "mulq" || cmd == "divq") {
-			Register &lhs = get_register("rax");
-			Register &rhs = get_register("rdx");
+			RegisterRef lhs = get_register("rax");
+			RegisterRef rhs = get_register("rdx");
 			
 			int lhs_size = get_size_of_operand(*(tok_it-1));
 			int rhs_size = get_size_of_operand(*(tok_it+1));
 			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)];
-			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs.from_size(lhs_size)  + '\n';
+			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
 			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)];
-			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs.from_size(rhs_size) + '\n';
+			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + ' ' + rhs.from_size(rhs_size) + '\n');
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.from_size(lhs_size)));
-			lhs.occupied = true;
-			rhs.occupied = false;
+			out.push_back(cmd + ' ' + rhs->get().from_size(rhs_size) + '\n');
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(lhs_size)));
+			lhs->get().occupied = true;
+			rhs->get().occupied = false;
 		}
 	}
 
@@ -509,7 +518,7 @@ namespace token_function {
 			current_stack_size += types::sizes[type_vec_index];
 			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
 			std::string str = "mov" + types::suffixes[type_vec_index] + ' ';
-			str += prep_asm_str(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
+			str += set_operand_prefix(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
 			out.push_back(str);
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
@@ -522,48 +531,48 @@ namespace token_function {
 		int rhs_size = get_size_of_operand(rhs);
 		size_t type_vec_index = index_of(types::sizes, rhs_size);
 
-		if (Register rhs_reg = get_register(*(tok_it+1)); rhs_reg != NULL_REG) {
-			rhs_reg.occupied = false;
+		if (RegisterRef rhs_reg = get_register(*(tok_it+1)); rhs_reg.has_value()) {
+			rhs_reg->get().occupied = false;
 		} else { // "mov mem, mem" is not allowed!!
-			Register reg = get_available_register();
-			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + prep_asm_str(rhs) + ", " + reg.from_size(rhs_size) + '\n');
-			rhs = reg.from_size(rhs_size);
-			reg.occupied = false;
+			RegisterRef reg = get_available_register();
+			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + set_operand_prefix(rhs) + ", " + reg->get().from_size(rhs_size) + '\n');
+			rhs = reg->get().from_size(rhs_size);
+			reg->get().occupied = false;
 		}
 		
-		out.push_back("mov" + types::suffixes[type_vec_index] + ' ' + prep_asm_str(rhs) + ", " + prep_asm_str(*(tok_it-1)) + '\n');
+		out.push_back("mov" + types::suffixes[type_vec_index] + ' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(*(tok_it-1)) + '\n');
 	}
 
 	void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
 			out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+3)) + ", %rsi" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+4)) + ", %rdx" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+2)) + ", %rdi" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+3)) + ", %rsi" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+4)) + ", %rdx" + '\n');
 			out.push_back("syscall\n");
 			
-			get_register("rax").occupied = false;
-			get_register("rdi").occupied = false;
-			get_register("rsi").occupied = false;
-			get_register("rdx").occupied = false;
+			get_register("rax")->get().occupied = false;
+			get_register("rdi")->get().occupied = false;
+			get_register("rsi")->get().occupied = false;
+			get_register("rdx")->get().occupied = false;
 		} else if (*(tok_it+1) == "r") { // READ
 			out.push_back("movq " + SYS_READ + ", %rax" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+3)) + ", %rsi" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+4)) + ", %rdx" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+2)) + ", %rdi" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+3)) + ", %rsi" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+4)) + ", %rdx" + '\n');
 			out.push_back("syscall\n");
 
-			get_register("rax").occupied = false;
-			get_register("rdi").occupied = false;
-			get_register("rsi").occupied = false;
-			get_register("rdx").occupied = false;
+			get_register("rax")->get().occupied = false;
+			get_register("rdi")->get().occupied = false;
+			get_register("rsi")->get().occupied = false;
+			get_register("rdx")->get().occupied = false;
 		} else if (*(tok_it+1) == "e") { // EXIT
 			out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+2)) + ", %rdi" + '\n');
+			out.push_back("movq " + set_operand_prefix(*(tok_it+2)) + ", %rdi" + '\n');
 			out.push_back("syscall\n");
 
-			get_register("rax").occupied = false;
-			get_register("rdi").occupied = false;
+			get_register("rax")->get().occupied = false;
+			get_register("rdi")->get().occupied = false;
 		}
 	}
 	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
@@ -580,15 +589,15 @@ namespace token_function {
 		current_function = func_name;
 	}
 	void function_call(TokIt tok_it) {
-		out.push_back("movq $0, %rax\n");
+		out.push_back("movl $0, %eax\n");
 		out.push_back("call " + *tok_it + '\n');
-		commit(replace_tok(_us_ltoks, tok_it, "%rax"));
+		commit(replace_tok(_us_ltoks, tok_it, "%eax"));
 	}
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
 		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
 		std::string ret = "mov" + types::suffixes[type_vec_index];
-		Register &rax = get_register("rax");
-		ret += ' ' + (tok_it+1 != toks.end() ? *(tok_it+1) : "$0") + ", " +  rax.from_size(types::sizes[type_vec_index]) + '\n';
+		RegisterRef rax = get_register("rax");
+		ret += ' ' + set_operand_prefix(*(tok_it+1)) + ", " + rax->get().from_size(types::sizes[type_vec_index]) + '\n';
 		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
@@ -602,7 +611,7 @@ int main(int argc, char *argv[]) {
 		clog::error("Must input file to compile.", 0);
 		return 0;
 	}
-
+	
 	std::ifstream read;
 	read.open(argv[1], std::ifstream::in);
 	std::ofstream write;
@@ -697,12 +706,9 @@ int main(int argc, char *argv[]) {
 	read.close();
 	write.close();
 
-	system(((std::string)"gcc rcout.s && ./a.out").c_str());
-	
+	system(((std::string)"as rcout.s -o rcout.o && ld rcout.o -e main && ./a.out").c_str());
 	system(((std::string)"rm rcout.o").c_str());
 
-	std::cout << std::endl;
-	
 	return 0;
 }
 
