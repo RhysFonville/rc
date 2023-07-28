@@ -1,4 +1,4 @@
-#include <algorithm> // The problem is with the postfixes (movq, movl and rax, eax)
+#include <algorithm>
 #include <clocale>
 #include <iostream>
 #include <fstream>
@@ -111,15 +111,15 @@ std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
 std::vector<Register> registers = {
-	{"rbx","ebx","ax","ah","al"}, {"r10","r10d","r10w","r10b","r10b"}, {"r11","r11d","r11w","r11b","r11b"}, {"r12","r12d","r12w","r12b","r12b"}, {"r13","r13d","r13w","r13b","r13b"}, {"r14","r14d","r13w","r13b","r13b"}, {"r15","r15d","r15w","r15b","r15b"},
-	{"rax","eax","ax","ah","al"}, {"rdi","edi","di","dil","dil"}, {"rsi","esi","si","sil","sil"}, {"rdx","edx","dx","dl","dh"}, {"rcx","ecx","cx","ch","cl"}, {"r8","r8d","r8w","r8b","r8b"}, {"r9","r8d","r8w","r8b","r8b"}, // SYSCALL REGISTERS
-	{"rsp","esp","sp","spl","spl"}, {"rbp","ebp","bp","bpl"} // STACK REGISTERS
+	Register("rbx","ebx","ax","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
+	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
+	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
 };
 
 namespace types {
 	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
-	const std::vector<unsigned char> sizes = { 4, 0, 0, 8, 2, 1 };
+	const std::vector<int> sizes = { 4, 0, 0, 8, 2, 1 };
 	const std::vector<std::string> suffixes = { "l", "X", "X", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
 };
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
@@ -292,8 +292,14 @@ std::vector<std::string>::const_iterator find_first_tok(const std::vector<std::s
 	return ltoks.end();
 }
 
-size_t from_it(const std::vector<std::string> &vec, const std::vector<std::string>::const_iterator &it) {
+template <typename T>
+size_t from_it(const std::vector<T> &vec, const typename std::vector<T>::const_iterator &it) {
 	return std::distance(vec.begin(), it);
+}
+
+template <typename T>
+size_t index_of(const std::vector<T> &vec, const T &val) {
+	return from_it(vec, std::find(vec.begin(), vec.end(), val));
 }
 
 std::vector<std::string> replace_toks(std::vector<std::string> toks, size_t begin, size_t end, const std::string &str) {
@@ -398,6 +404,7 @@ int get_size_of_number(const std::string &str) {
 	if (number < SHRT_MAX) return 2;
 	if (number < INT_MAX) return 4;
 	if (number < LONG_MAX) return 8;
+	return 0;
 }
 
 int get_size_of_operand(const std::string &str) {
@@ -438,42 +445,45 @@ namespace token_function {
 		}
 		if (cmd == "addq" || cmd == "subq") {
 			Register &lhs = get_available_register();
-			lhs.occupied = true;
 			Register &rhs = get_available_register();
-			rhs.occupied = true;
 			
 			int lhs_size = get_size_of_operand(*(tok_it-1));
 			int rhs_size = get_size_of_operand(*(tok_it+1));
-			std::string lhs_str = "mov" + types::suffixes[from_it(types::sizes, std::find(types::sizes.begin(), types::sizes.end(), lhs_size))];
-			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs.name  + '\n');
-			std::string rhs_str = "mov" + types::suffixes[from_it(types::sizes, std::find(types::sizes.begin(), types::sizes.end(), rhs_size))];
-			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs.name + '\n');
+			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)];
+			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs.from_size(lhs_size)  + '\n';
+			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)];
+			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs.from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + ' ' + rhs.name + ", " + lhs.name + '\n');
+			out.push_back(cmd + ' ' + rhs.from_size(rhs_size) + ", " + lhs.from_size(lhs_size) + '\n');
 		
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.from_size(lhs_size)));
 			
 			lhs.occupied = true;
 			rhs.occupied = false;
 		} else if (cmd == "mulq" || cmd == "divq") {
 			Register &lhs = get_register("rax");
-			lhs.occupied = true;
 			Register &rhs = get_register("rdx");
-			lhs.occupied = true;
 			
-			out.push_back("movq " + prep_asm_str(*(tok_it-1)) + ", " + lhs.name + '\n');
-			out.push_back("movq " + prep_asm_str(*(tok_it+1)) + ", " + rhs.name + '\n');
-			out.push_back(cmd + ' ' + rhs.name + '\n');
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.name));
+			int lhs_size = get_size_of_operand(*(tok_it-1));
+			int rhs_size = get_size_of_operand(*(tok_it+1));
+			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)];
+			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs.from_size(lhs_size)  + '\n';
+			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)];
+			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs.from_size(rhs_size) + '\n';
+			
+			out.push_back(lhs_str);
+			out.push_back(rhs_str);
+			out.push_back(cmd + ' ' + rhs.from_size(rhs_size) + '\n');
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs.from_size(lhs_size)));
 			lhs.occupied = true;
 			rhs.occupied = false;
 		}
 	}
 
 	void variable_declaration(TokIt tok_it, std::string current_function, std::vector<std::string> &variable_names, std::vector<int> &variable_sizes, std::vector<int> &variable_stack_locations, int &current_stack_size) {
-		size_t type_vec_index = from_it(types::types, std::find(types::types.begin(), types::types.end(), *tok_it)); // Very long, it just gets the asm_type from tok_it
+		size_t type_vec_index = index_of(types::types, *tok_it);
 		
 		if (current_function.empty()) {
 			out.insert(out.begin(), ".globl " + *(tok_it+1) + '\n');
@@ -509,20 +519,19 @@ namespace token_function {
 
 	void equals(TokIt tok_it) {
 		std::string rhs = *(tok_it+1);
-		
-		std::cout << rhs << std::endl;
-		std::cout << *(tok_it-1) << std::endl;
-		
+		int rhs_size = get_size_of_operand(rhs);
+		size_t type_vec_index = index_of(types::sizes, rhs_size);
+
 		if (Register rhs_reg = get_register(*(tok_it+1)); rhs_reg != NULL_REG) {
 			rhs_reg.occupied = false;
-		} else {
+		} else { // "mov mem, mem" is not allowed!!
 			Register reg = get_available_register();
-			out.push_back("movq " + prep_asm_str(rhs) + ", " + reg.name + '\n');
-			rhs = reg.name;
+			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + prep_asm_str(rhs) + ", " + reg.from_size(rhs_size) + '\n');
+			rhs = reg.from_size(rhs_size);
 			reg.occupied = false;
 		}
 		
-		out.push_back("movq " + prep_asm_str(rhs) + ", " + prep_asm_str(*(tok_it-1)) + '\n');
+		out.push_back("mov" + types::suffixes[type_vec_index] + ' ' + prep_asm_str(rhs) + ", " + prep_asm_str(*(tok_it-1)) + '\n');
 	}
 
 	void base_functions(TokIt tok_it) {
@@ -573,18 +582,14 @@ namespace token_function {
 	void function_call(TokIt tok_it) {
 		out.push_back("movq $0, %rax\n");
 		out.push_back("call " + *tok_it + '\n');
-		//for (std::string tok : _us_ltoks) {
-		//	std::cout << tok << ' ';
-		//}
-		//std::cout << std::endl;
 		commit(replace_tok(_us_ltoks, tok_it, "%rax"));
-		//for (std::string tok : _us_ltoks) {
-		//	std::cout << tok << ' ';
-		//}
-		//std::cout << std::endl;
 	}
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
-		out.push_back("movq " + (tok_it+1 != toks.end() ? *(tok_it+1) : "0") + ", %rax\n");
+		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
+		std::string ret = "mov" + types::suffixes[type_vec_index];
+		Register &rax = get_register("rax");
+		ret += ' ' + (tok_it+1 != toks.end() ? *(tok_it+1) : "$0") + ", " +  rax.from_size(types::sizes[type_vec_index]) + '\n';
+		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
 		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
