@@ -119,6 +119,10 @@ using RegisterRef = std::optional<std::reference_wrapper<Register>>;
 std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
+std::vector<std::string> variable_names = { };
+std::vector<int> variable_sizes = { };
+std::vector<int> variable_stack_locations = { };
+
 std::vector<Register> registers = {
 	Register("rbx","ebx","ax","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
 	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
@@ -398,16 +402,14 @@ std::string set_operand_prefix(std::string str) {
 }
 
 int get_size_of_asm_stack_variable(const std::string &str) {
-	return std::stoi(str.substr(1, str.find('(')));
+	int stack_offset = std::stoi(str.substr(1, str.find('(')-1));
+	int var_vec_index = index_of(variable_stack_locations, -stack_offset);
+
+	return variable_sizes[var_vec_index];
 }
 
 int get_size_of_number(const std::string &str) {
-	long long number; 
-	if (str[0] == '$') {
-		number = std::stoll(str.substr(1));
-	} else {
-		number = std::stoll(str);	
-	}
+	long long number = std::stoll(str);	
 
 	if (number < CHAR_MAX) return 1;
 	if (number < SHRT_MAX) return 2;
@@ -419,8 +421,10 @@ int get_size_of_number(const std::string &str) {
 int get_size_of_operand(const std::string &str) {
 	if (str.find("%rbp") != std::string::npos) {
 		return get_size_of_asm_stack_variable(str);
-	} else {
+	} else if (is_number(str)) {
 		return get_size_of_number(str);
+	} else {
+		return -1;	
 	}
 }
 
@@ -442,56 +446,58 @@ namespace token_function {
 	void math(TokIt tok_it) {
 		std::string cmd;
 		if (*tok_it == "*") {
-			cmd = "mulq";
+			cmd = "mul";
 		} else if (*tok_it == "/") {
-			cmd = "divq";
+			cmd = "div";
 		} else if (*tok_it == "+") {
-			cmd = "addq";
+			cmd = "add";
 		} else if (*tok_it == "-") {
-			cmd = "subq";
-		} else if (*tok_it == "%") {
-			cmd = "% not supported yet";
+			cmd = "sub";
 		}
-		if (cmd == "addq" || cmd == "subq") {
+		if (cmd == "add" || cmd == "sub") {
 			RegisterRef lhs = get_available_register();
+			lhs->get().occupied = true;
 			RegisterRef rhs = get_available_register();
 			
 			int lhs_size = get_size_of_operand(*(tok_it-1));
 			int rhs_size = get_size_of_operand(*(tok_it+1));
-			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)];
+			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)] + ' ';
 			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
-			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)];
+			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)] + ' ';
 			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + ' ' + rhs->get().from_size(rhs_size) + ", " + lhs->get().from_size(lhs_size) + '\n');
+			out.push_back(cmd + types::suffixes[index_of(types::sizes, lhs_size)] + ' ' + rhs->get().from_size(rhs_size) + ", " + lhs->get().from_size(lhs_size) + '\n');
 		
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(lhs_size)));
 			
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
-		} else if (cmd == "mulq" || cmd == "divq") {
+		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
+			lhs->get().occupied = true;
 			RegisterRef rhs = get_register("rdx");
 			
 			int lhs_size = get_size_of_operand(*(tok_it-1));
 			int rhs_size = get_size_of_operand(*(tok_it+1));
-			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)];
+			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)] + ' ';
 			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
-			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)];
+			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)] + ' ';
 			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + ' ' + rhs->get().from_size(rhs_size) + '\n');
+			out.push_back(cmd + types::suffixes[index_of(types::sizes, lhs_size)] + ' ' + rhs->get().from_size(rhs_size) + '\n');
+
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(lhs_size)));
+			
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
 		}
 	}
 
-	void variable_declaration(TokIt tok_it, std::string current_function, std::vector<std::string> &variable_names, std::vector<int> &variable_sizes, std::vector<int> &variable_stack_locations, int &current_stack_size) {
+	void variable_declaration(TokIt tok_it, std::string current_function, int &current_stack_size) {
 		size_t type_vec_index = index_of(types::types, *tok_it);
 		
 		if (current_function.empty()) {
@@ -619,9 +625,6 @@ int main(int argc, char *argv[]) {
 	
 	std::vector<std::string> disallowed_toks = { };
 	
-	std::vector<std::string> variable_names = { };
-	std::vector<int> variable_sizes = { };
-	std::vector<int> variable_stack_locations = { };
 
 	std::vector<std::string> functions = { };
 	std::vector<int> current_function_stack_sizes = { };
@@ -658,15 +661,18 @@ int main(int argc, char *argv[]) {
 					token_function::function_call(tok_it);
 				}
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(types::types) {
-				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
-				token_function::variable_declaration(tok_it, current_function, variable_names, variable_sizes, variable_stack_locations, current_function_stack_sizes[func_vec_index]);
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(variable_names) {
 				size_t vec_index = from_it(variable_names, std::find(variable_names.begin(), variable_names.end(), *tok_it));
 				if (variable_stack_locations[vec_index] != -1) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
 				}
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKENS(math_symbols) {
+				token_function::math(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKENS(types::types) {
+				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
+				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
@@ -679,9 +685,6 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("^") {
 				token_function::dereference(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(math_symbols) {
-				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("=") {
 				token_function::equals(tok_it);
