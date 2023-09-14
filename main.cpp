@@ -418,14 +418,43 @@ int get_size_of_number(const std::string &str) {
 	return 0;
 }
 
-int get_size_of_operand(const std::string &str) {
+int get_size_of_operand(const std::string &str, int number_default = -1) {
 	if (str.find("%rbp") != std::string::npos) {
 		return get_size_of_asm_stack_variable(str);
 	} else if (is_number(str)) {
+		if (number_default != -1) return number_default;
 		return get_size_of_number(str);
 	} else {
 		return -1;	
 	}
+} 
+
+char size_to_letter(int size) {
+	if (size == 1)
+		return 'b';
+	else if (size == 2)
+		return 'w';
+	else if (size == 4)
+		return 'l';
+	else if (size == 8)
+		return 'q';
+	
+	return '\0';
+}
+
+std::string sign_extension_mov(int lhs, int rhs) {
+	return std::string("movs") + size_to_letter(rhs) + size_to_letter(lhs);
+}
+
+std::string zero_extension_mov(int lhs, int rhs) {
+	return std::string("movz") + size_to_letter(rhs) + size_to_letter(lhs);
+}
+
+std::string get_mov_instruction(int lhs, int rhs) {
+	if (lhs > rhs)
+		return zero_extension_mov(lhs, rhs);
+	else
+		return "mov" + types::suffixes[index_of(types::sizes, lhs)];
 }
 
 namespace token_function {
@@ -459,18 +488,24 @@ namespace token_function {
 			lhs->get().occupied = true;
 			RegisterRef rhs = get_available_register();
 			
-			int lhs_size = get_size_of_operand(*(tok_it-1));
+			int lhs_size = get_size_of_operand(*(tok_it-1)); 
 			int rhs_size = get_size_of_operand(*(tok_it+1));
-			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)] + ' ';
+			int arithmatic_size = std::max({ lhs_size, rhs_size, 4 });
+
+			// Check again using a number default now that we know the arithmatic size
+			lhs_size = get_size_of_operand(*(tok_it-1), arithmatic_size); 
+			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
+			
+			std::string lhs_str = get_mov_instruction(lhs_size, arithmatic_size) + ' ';
 			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
-			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)] + ' ';
+			std::string rhs_str = get_mov_instruction(rhs_size, arithmatic_size) + ' ';
 			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + types::suffixes[index_of(types::sizes, lhs_size)] + ' ' + rhs->get().from_size(rhs_size) + ", " + lhs->get().from_size(lhs_size) + '\n');
+			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().from_size(arithmatic_size) + ", " + lhs->get().from_size(arithmatic_size) + '\n');
 		
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(lhs_size)));
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(arithmatic_size)));
 			
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
@@ -671,8 +706,12 @@ int main(int argc, char *argv[]) {
 				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
-				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
-				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
+				if (*(tok_it-1) == "(" && *(tok_it+1) == ")") { // Conversion
+					//token_function::conversion();
+				} else { // Variable
+					size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
+					token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
+				}
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
