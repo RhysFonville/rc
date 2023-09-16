@@ -130,7 +130,7 @@ std::vector<Register> registers = {
 };
 
 namespace types {
-	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch"};
+	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
 	const std::vector<int> sizes = { 4, 0, 0, 8, 2, 1 };
 	const std::vector<std::string> suffixes = { "l", "X", "X", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
@@ -159,7 +159,7 @@ namespace clog {
 		std::cerr << (print_line ? "LINE: " + std::to_string(line_number) : "") << "WARNING: " << str << std::endl;
 	}
 	void error(const std::string &str, bool print_line = true) noexcept {
-		std::cerr << (print_line != -1 ? "LINE: " + std::to_string(line_number) : "") << " ERROR: " << str << std::endl;
+		std::cerr << (print_line ? "LINE: " + std::to_string(line_number) : "") << " ERROR: " << str << std::endl;
 	}
 	void note(const std::string &str) noexcept {
 		std::cout << "NOTE: " << str << std::endl;
@@ -555,7 +555,7 @@ namespace token_function {
 			out.insert(out.begin()+4, def_type+'\n');
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
-			variable_stack_locations.push_back(-1);
+			variable_stack_locations.push_back(INT_MAX);
 		} else {
 			current_stack_size += types::sizes[type_vec_index];
 			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
@@ -565,7 +565,6 @@ namespace token_function {
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(-current_stack_size);
-			std::cout << variable_names.back() << std::endl;
 		}
 	}
 
@@ -639,6 +638,7 @@ namespace token_function {
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
 		if (tok_it == toks.end()) {
 			clog::error(current_function + " is not returning a value. All functions must return a value.", line_number);
+			return;
 		}
 
 		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
@@ -702,8 +702,8 @@ int main(int argc, char *argv[]) {
 				}
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(variable_names) {
-				size_t vec_index = from_it(variable_names, std::find(variable_names.begin(), variable_names.end(), *tok_it));
-				if (variable_stack_locations[vec_index] != -1) {
+				size_t vec_index = index_of(variable_names, *tok_it);
+				if (variable_stack_locations[vec_index] != INT_MAX) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
 				}
 			} WHILE_FIND_TOKEN_END

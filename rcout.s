@@ -1,10 +1,5 @@
 .file "code.txt"
 .data
-.globl s
-.align 0
-.type s, @object
-s:
-.asciz "hello\n"
 .text
 .globl main
 .type main, @function
@@ -12,11 +7,12 @@ main:
 pushq %rbp
 movq %rsp, %rbp
 subq $16, %rsp
-leaq s, %rbx
+movb $48, -1(%rbp)
+leaq -1(%rbp), %rbx
 movq $1, %rax
 movq $1, %rdi
 movq %rbx, %rsi
-movq $6, %rdx
+movq $1, %rdx
 syscall
 movq $60, %rax
 movq $0, %rdi
