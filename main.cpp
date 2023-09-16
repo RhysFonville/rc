@@ -130,7 +130,7 @@ std::vector<Register> registers = {
 };
 
 namespace types {
-	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
+	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch"};
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
 	const std::vector<int> sizes = { 4, 0, 0, 8, 2, 1 };
 	const std::vector<std::string> suffixes = { "l", "X", "X", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
@@ -149,17 +149,19 @@ const std::string SYS_EXIT  = "$60";
 const std::string STDIN     = "$0";
 const std::string STDOUT    = "$1";
 
+size_t line_number = 0;
+
 namespace clog {
-	void out(const std::string &str, size_t line = -1) noexcept {
+	void out(const std::string &str) noexcept {
 		std::cout << str << std::endl;
 	}
-	void warn(const std::string &str, size_t line) noexcept {
-		std::cerr << (line != -1 ? "LINE: " + std::to_string(line) : "") << "WARNING: " << str << std::endl;
+	void warn(const std::string &str, bool print_line = true) noexcept {
+		std::cerr << (print_line ? "LINE: " + std::to_string(line_number) : "") << "WARNING: " << str << std::endl;
 	}
-	void error(const std::string &str, size_t line) noexcept {
-		std::cerr << (line != -1 ? "LINE: " + std::to_string(line) : "") << " ERROR: " << str << std::endl;
+	void error(const std::string &str, bool print_line = true) noexcept {
+		std::cerr << (print_line != -1 ? "LINE: " + std::to_string(line_number) : "") << " ERROR: " << str << std::endl;
 	}
-	void note(const std::string &str, size_t line = -1) noexcept {
+	void note(const std::string &str) noexcept {
 		std::cout << "NOTE: " << str << std::endl;
 	}
 }
@@ -555,7 +557,6 @@ namespace token_function {
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(-1);
 		} else {
-			
 			current_stack_size += types::sizes[type_vec_index];
 			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
 			std::string str = "mov" + types::suffixes[type_vec_index] + ' ';
@@ -564,6 +565,7 @@ namespace token_function {
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(-current_stack_size);
+			std::cout << variable_names.back() << std::endl;
 		}
 	}
 
@@ -581,7 +583,7 @@ namespace token_function {
 			reg->get().occupied = false;
 		}
 		
-		out.push_back("mov" + types::suffixes[type_vec_index] + ' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(*(tok_it-1)) + '\n');
+		out.push_back(get_mov_instruction(rhs_size, get_size_of_operand(*(tok_it-1))) + ' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(*(tok_it-1)) + '\n');
 	}
 
 	void base_functions(TokIt tok_it) {
@@ -635,6 +637,10 @@ namespace token_function {
 		commit(replace_tok(_us_ltoks, tok_it, "%eax"));
 	}
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
+		if (tok_it == toks.end()) {
+			clog::error(current_function + " is not returning a value. All functions must return a value.", line_number);
+		}
+
 		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
 		std::string ret = "mov" + types::suffixes[type_vec_index];
 		RegisterRef rax = get_register("rax");
@@ -673,7 +679,6 @@ int main(int argc, char *argv[]) {
 	
 	TokIt tok_it;
 
-	size_t line_number = 0;
 	std::string l;
 	while (std::getline(read, l)) {
 		line_number++;
@@ -706,12 +711,8 @@ int main(int argc, char *argv[]) {
 				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
-				if (*(tok_it-1) == "(" && *(tok_it+1) == ")") { // Conversion
-					//token_function::conversion();
-				} else { // Variable
-					size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
-					token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
-				}
+				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
+				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
