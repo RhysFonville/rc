@@ -116,6 +116,16 @@ struct Register {
 
 using RegisterRef = std::optional<std::reference_wrapper<Register>>; 
 
+enum class BraceType {
+	Neutral,
+	If
+};
+
+struct Brace {
+	int brace_index;
+	BraceType type;
+};
+
 std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
@@ -410,6 +420,18 @@ int get_size_of_asm_stack_variable(const std::string &str) {
 	return variable_sizes[var_vec_index];
 }
 
+int get_size_of_register(const std::string &str) {
+	for (Register &reg : registers) {
+		if (reg.comp_names(reg.names.q, str)) return 8;
+		if (reg.comp_names(reg.names.l, str)) return 4;
+		if (reg.comp_names(reg.names.w, str)) return 2;
+		if (reg.comp_names(reg.names.bh, str)) return 1;
+		if (reg.comp_names(reg.names.bl, str)) return 1;
+	}
+
+	return -1;
+}
+
 int get_size_of_number(const std::string &str) {
 	long long number = std::stoll(str);	
 
@@ -426,8 +448,10 @@ int get_size_of_operand(const std::string &str, int number_default = -1) {
 	} else if (is_number(str)) {
 		if (number_default != -1) return number_default;
 		return get_size_of_number(str);
+	} else if (RegisterRef reg = get_register(str); reg.has_value()) {
+		return get_size_of_register(str);
 	} else {
-		return -1;	
+		return -1;
 	}
 } 
 
@@ -453,7 +477,7 @@ std::string zero_extension_mov(int lhs, int rhs) {
 }
 
 std::string get_mov_instruction(int lhs, int rhs) {
-	if (lhs > rhs)
+	if (lhs < rhs)
 		return zero_extension_mov(lhs, rhs);
 	else
 		return "mov" + types::suffixes[index_of(types::sizes, lhs)];
@@ -515,19 +539,25 @@ namespace token_function {
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
 			RegisterRef rhs = get_register("rdx");
-			
-			int lhs_size = get_size_of_operand(*(tok_it-1));
+
+			int lhs_size = get_size_of_operand(*(tok_it-1)); 
 			int rhs_size = get_size_of_operand(*(tok_it+1));
-			std::string lhs_str = "mov" + types::suffixes[index_of(types::sizes, lhs_size)] + ' ';
+			int arithmatic_size = std::max({ lhs_size, rhs_size, 4 });
+
+			// Check again using a number default now that we know the arithmatic size
+			lhs_size = get_size_of_operand(*(tok_it-1), arithmatic_size); 
+			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
+			
+			std::string lhs_str = get_mov_instruction(lhs_size, arithmatic_size) + ' ';
 			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
-			std::string rhs_str = "mov" + types::suffixes[index_of(types::sizes, rhs_size)] + ' ';
+			std::string rhs_str = get_mov_instruction(rhs_size, arithmatic_size) + ' ';
 			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + types::suffixes[index_of(types::sizes, lhs_size)] + ' ' + rhs->get().from_size(rhs_size) + '\n');
+			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().from_size(arithmatic_size) + '\n');
 
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(lhs_size)));
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(arithmatic_size)));
 			
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
@@ -558,8 +588,10 @@ namespace token_function {
 			variable_stack_locations.push_back(INT_MAX);
 		} else {
 			current_stack_size += types::sizes[type_vec_index];
+		
 			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
-			std::string str = "mov" + types::suffixes[type_vec_index] + ' ';
+			
+			std::string str = get_mov_instruction(get_size_of_operand(*(tok_it+2)), types::sizes[type_vec_index]) + ' ';
 			str += set_operand_prefix(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
 			out.push_back(str);
 			variable_names.push_back(*(tok_it+1));
@@ -617,6 +649,7 @@ namespace token_function {
 			get_register("rdi")->get().occupied = false;
 		}
 	}
+
 	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
 		std::string func_name = *(tok_it+1);
 		out.push_back(".globl " + func_name + '\n');
@@ -630,11 +663,13 @@ namespace token_function {
 		stack_sizes.push_back(0);
 		current_function = func_name;
 	}
+	
 	void function_call(TokIt tok_it) {
 		out.push_back("movl $0, %eax\n");
 		out.push_back("call " + *tok_it + '\n');
 		commit(replace_tok(_us_ltoks, tok_it, "%eax"));
 	}
+	
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
 		if (tok_it == toks.end()) {
 			clog::error(current_function + " is not returning a value. All functions must return a value.", line_number);
@@ -651,6 +686,41 @@ namespace token_function {
 		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
 		current_function = "";
 	}
+	
+	void brace_begin(TokIt tok_it, std::vector<std::string> toks, std::vector<Brace> &braces, int &braces_index) {
+		braces.push_back({ ++braces_index, (index_of(toks, "if") != -1 ? BraceType::If : BraceType::Neutral });
+	}
+
+	void brace_end(TokIt tok_it, std::vector<Brace> &braces, int &braces_index, std::vector<std::string> &if_labels) {
+		if (braces[braces_index].type == BraceType::If) {
+			out.push_back(if_labels); dflkgjsdlfkgj // do this
+		}
+		braces.erase(braces_index--);
+	}
+
+	void if_statement(TokIt tok_it, std::vector<std::string> &if_labels) {
+		out.push_back("cmp" + types::suffixes[index_of(types::sizes, get_size_of_operand(*(tok_it+1)))] +
+			' ' + *(tok_it+1) + ", " + *(tok_it+3) + '\n'
+		);
+
+		std::string op = "";
+		if (*(tok_it+2) == "=") {
+			op = "ne";
+		} else if (*(tok_it+2) == "!=") {
+			op = "e";
+		} else if (*(tok_it+2) == "<") {
+			op = "ge";
+		} else if (*(tok_it+2) == "<=") {
+			op = "g";
+		} else if (*(tok_it+2) == ">") {
+			op = "le";
+		} else if (*(tok_it+2)  == ">=") {
+			op = "l";
+		}
+
+		out.push_back('j' + op + "IF" + std::to_string(if_labels.size()) + '\n');
+		if_labels.push_back("IF" + std::to_string(if_labels.size()));
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -665,11 +735,15 @@ int main(int argc, char *argv[]) {
 	write.open("rcout.s", std::ofstream::out | std::ios::trunc);
 	
 	std::vector<std::string> disallowed_toks = { };
-	
 
 	std::vector<std::string> functions = { };
 	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
+	
+	std::vector<Brace> open_braces = { };
+	int brace_index = 0u;
+
+	std::vector<std::string> if_labels = { };
 
 	// --------- MAIN ---------
 	out.push_back(".text\n");
@@ -731,6 +805,9 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("if") {
+				token_function::if_statement(tok_it, if_labels);
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();

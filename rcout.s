@@ -7,7 +7,10 @@ main:
 pushq %rbp
 movq %rsp, %rbp
 subq $16, %rsp
-movb $48, -1(%rbp)
+movl $96, %edx
+movl $2, %eax
+divl %eax
+movl %edx, -1(%rbp)
 leaq -1(%rbp), %rbx
 movq $1, %rax
 movq $1, %rdi

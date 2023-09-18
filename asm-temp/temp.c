@@ -1,7 +1,12 @@
 #include <unistd.h>
 
 int main() {
-	int a = 2;
-	char i = a;
+	int i = 3;
+	char a = 5;
+	if (i == a) {
+		a = i;
+	}
+	
+
 	return 0;
 }
