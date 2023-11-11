@@ -695,59 +695,6 @@ namespace token_function {
 		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
 		current_function = "";
 	}
-	
-	/*void brace_begin(TokIt tok_it, const std::vector<std::string> &toks, std::vector<Brace> &braces, int &braces_index) {
-		braces.push_back({ ++braces_index, (index_of(toks, std::string("if"))) != -1 ? BraceType::If : BraceType::Neutral });
-	}
-
-	void brace_end(TokIt tok_it, std::vector<Brace> &braces, int &braces_index, const std::vector<std::string> &if_labels, const std::vector<int> &if_labels_brace_index) {
-		if (braces[braces_index-1].type == BraceType::If) {
-			out.push_back('.' + if_labels[index_of_last(if_labels_brace_index, braces_index)] + ":\n");
-		}
-		braces.erase(braces.begin()+braces_index-1);
-		braces_index--;
-	}
-
-	void if_statement(TokIt tok_it, std::vector<std::string> &if_labels) {
-		int rhs_size = get_size_of_operand(*(tok_it+3)); 
-		int lhs_size = get_size_of_operand(*(tok_it+1));
-		int cmp_size = std::max({ lhs_size, rhs_size });
-		
-		std::string rhs = *(tok_it+3);
-		std::string lhs = *(tok_it+1);
-		
-		if (lhs_size < cmp_size) {
-			RegisterRef reg = get_available_register();
-			out.push_back(get_mov_instruction(lhs_size, cmp_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().from_size(cmp_size) + '\n');
-			lhs = reg->get().from_size(cmp_size);
-		} else if (rhs_size < cmp_size) {
-			RegisterRef reg = get_available_register();
-			out.push_back(get_mov_instruction(rhs_size, cmp_size) + ' ' + set_operand_prefix(rhs) + ", " + reg->get().from_size(cmp_size) + '\n');
-			rhs = reg->get().from_size(cmp_size);
-		}
-		
-		out.push_back("cmp" + types::suffixes[index_of(types::sizes, cmp_size)] +
-			' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(lhs) + '\n'
-		);
-		
-		std::string op = "";
-		if (*(tok_it+2) == "==") {
-			op = "ne";
-		} else if (*(tok_it+2) == "!=") {
-			op = "e";
-		} else if (*(tok_it+2) == "<") {
-			op = "ge";
-		} else if (*(tok_it+2) == "<=") {
-			op = "g";
-		} else if (*(tok_it+2) == ">") {
-			op = "le";
-		} else if (*(tok_it+2)  == ">=") {
-			op = "l";
-		}
-
-		out.push_back('j' + op + " .IF" + std::to_string(if_labels.size()) + '\n');
-		if_labels.push_back("IF" + std::to_string(if_labels.size()));
-	}*/
 }
 
 int main(int argc, char *argv[]) {
@@ -767,12 +714,6 @@ int main(int argc, char *argv[]) {
 	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
 	
-	/*std::vector<Brace> open_braces = { };
-	int braces_index = 0u;
-
-	std::vector<std::string> if_labels = { };
-	std::vector<int> if_labels_brace_index = { };*/
-
 	// --------- MAIN ---------
 	out.push_back(".text\n");
 	// ------------------------
@@ -834,15 +775,6 @@ int main(int argc, char *argv[]) {
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
 			} WHILE_FIND_TOKEN_END
-			/*WHILE_US_FIND_TOKEN("if") {
-				token_function::if_statement(tok_it, if_labels);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("{") {
-				token_function::brace_begin(tok_it, _us_ltoks, open_braces, braces_index);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("}") {
-				token_function::brace_end(tok_it, open_braces, braces_index, if_labels, if_labels_brace_index);
-			} WHILE_FIND_TOKEN_END*/
 
 			disallowed_toks.clear();
 		}
