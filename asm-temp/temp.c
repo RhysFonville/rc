@@ -11,12 +11,8 @@ int main() {
 	l = i;
 	i = l;
 
-	i = s;
-	s = i;
-	s = l;
-
 	c = l;
-	i = c;
+	l = c;
 
 	return 0;
 }

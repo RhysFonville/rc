@@ -494,14 +494,47 @@ std::string cast_var(const std::string &var, int size) {
 	
 	if (var_size == size) return var;
 
-	if (var_size == 4 && size == 8) {
-		RegisterRef rax = get_register("rax");
-		if (rax->get().occupied) {
-			RegisterRef temp_reg = get_available_register();
-			out.push_back("movq %rax, " + temp_reg->get().name_from_size(8) + '\n');
-		}
-		out.push_back(
+
+	return var;
+}
+
+std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs) {
+	int lhs_size = get_size_of_operand(lhs);
+	int rhs_size = get_size_of_operand(rhs, lhs_size);
+	int max_size = std::max(lhs_size, rhs_size);
+	
+	bool lhs_is_reg = true;
+	if (!get_register(lhs).has_value()) {
+		lhs_is_reg = false;
 	}
+	bool rhs_is_reg = true;
+	if (!get_register(rhs).has_value()) {
+		rhs_is_reg = false;
+	}
+	
+	// mem -> mem is not allowed, so I have to make the lhs a register.
+	// This would also be a good time to cast the lhs to the appropriate size.
+	if (!lhs_is_reg && !rhs_is_reg) {
+		if (lhs_size == 4 && max_size == 8) { // int -> long
+			RegisterRef rax = get_register("rax");
+			if (rax->get().occupied) {
+				RegisterRef temp_reg = get_available_register();
+				temp_reg->get().occupied = true;
+				out.push_back("movq %rax, " + temp_reg->get().name_from_size(8) + '\n');
+			}
+			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
+			out.push_back("cltq");
+			
+			lhs = "%rax";
+		} else {
+			RegisterRef reg = get_available_register();
+			reg->get().occupied = true;
+			out.push_back(get_mov_instruction(lhs_size, max_size) + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(max_size));
+			lhs = reg->get().name_from_size(max_size);
+		}
+	}
+	
+	return { lhs, rhs };
 }
 
 namespace token_function {

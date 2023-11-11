@@ -10,21 +10,28 @@ main:
 	movw	$1233, -14(%rbp)
 	movb	$34, -15(%rbp)
 	movl	$1410065407, -20(%rbp)
+	
+	// l = i
+	// (i to l)
 	movl	-12(%rbp), %eax
 	cltq
 	movq	%rax, -8(%rbp)
+	
+	// i = l
+	// (l to i)
 	movq	-8(%rbp), %rax
 	movl	%eax, -12(%rbp)
-	movswl	-14(%rbp), %eax
-	movl	%eax, -12(%rbp)
-	movl	-12(%rbp), %eax
-	movw	%ax, -14(%rbp)
-	movq	-8(%rbp), %rax
-	movw	%ax, -14(%rbp)
+	
+	// c = l
+	// (l to c)
 	movq	-8(%rbp), %rax
 	movb	%al, -15(%rbp)
-	movsbl	-15(%rbp), %eax
-	movl	%eax, -12(%rbp)
+
+	// l = c
+	// (c to l)
+	movsbq	-15(%rbp), %rax
+	movq	%rax, -8(%rbp)
+	
 	movl	$0, %eax
 	popq	%rbp
 	ret
