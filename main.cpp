@@ -14,7 +14,7 @@
 		while (true) { \
 			tok_it = remove_constness(_ltoks, find_tok(_ltoks, tok, tok_it)); \
 			if (tok_it != _ltoks.end()) { \
-				out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+				if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
  
 #define WHILE_FIND_TOKEN_END \
 			} else { \
@@ -30,7 +30,7 @@
 		while (true) { \
 			tok_it = remove_constness(_us_ltoks, find_tok(_us_ltoks, tok, tok_it)); \
 			if (tok_it != _us_ltoks.end()) { \
-				out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+				if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
 
 #define WHILE_FIND_TOKENS(toks) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #toks) == disallowed_toks.end()) { \
@@ -38,7 +38,7 @@
 		while (true) { \
 			tok_it = remove_constness(_ltoks, find_first_tok(_ltoks, toks, tok_it)); \
 			if (tok_it != _ltoks.end()) { \
-				out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
+				if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
 
 #define WHILE_US_FIND_TOKENS(toks) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #toks) == disallowed_toks.end()) { \
@@ -46,7 +46,7 @@
 		while (true) { \
 			tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
 			if (tok_it != _us_ltoks.end()) { \
-				out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
+				if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
 
 using TokIt = std::vector<std::string>::iterator;
 
@@ -94,7 +94,7 @@ struct Register {
 		);
 	}
 
-	std::string from_size(int size) {
+	std::string name_from_size(int size) {
 		if (size == 1) {
 			return names.bl;
 		} else if (size == 2) {
@@ -529,15 +529,15 @@ namespace token_function {
 			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
 			
 			std::string lhs_str = get_mov_instruction(arithmatic_size, lhs_size) + ' ';
-			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
+			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().name_from_size(lhs_size)  + '\n';
 			std::string rhs_str = get_mov_instruction(arithmatic_size, rhs_size) + ' ';
-			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
+			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().name_from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().from_size(arithmatic_size) + ", " + lhs->get().from_size(arithmatic_size) + '\n');
+			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().name_from_size(arithmatic_size) + ", " + lhs->get().name_from_size(arithmatic_size) + '\n');
 		
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(arithmatic_size)));
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
 			
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
@@ -555,15 +555,15 @@ namespace token_function {
 			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
 			
 			std::string lhs_str = get_mov_instruction(lhs_size, arithmatic_size) + ' ';
-			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
+			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().name_from_size(lhs_size)  + '\n';
 			std::string rhs_str = get_mov_instruction(rhs_size, arithmatic_size) + ' ';
-			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
+			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().name_from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().from_size(arithmatic_size) + '\n');
+			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().name_from_size(arithmatic_size) + '\n');
 
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().from_size(arithmatic_size)));
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
 			
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
@@ -607,6 +607,8 @@ namespace token_function {
 	}
 
 	void equals(TokIt tok_it) {
+		std::cout << "TOKENIZING!! LSDIFHJSD:FHW:\n";
+		
 		std::string rhs = *(tok_it+1);
 		int rhs_size = get_size_of_operand(rhs, get_size_of_operand(*(tok_it-1)));
 
@@ -615,8 +617,8 @@ namespace token_function {
 		} else { // "mov mem, mem" is not allowed!!
 			RegisterRef reg = get_available_register();
 			size_t type_vec_index = index_of(types::sizes, rhs_size);
-			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + set_operand_prefix(rhs) + ", " + reg->get().from_size(rhs_size) + '\n');
-			rhs = reg->get().from_size(rhs_size);
+			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + set_operand_prefix(rhs) + ", " + reg->get().name_from_size(rhs_size) + '\n');
+			rhs = reg->get().name_from_size(rhs_size);
 			reg->get().occupied = false;
 		}
 		
@@ -677,7 +679,7 @@ namespace token_function {
 	}
 	
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
-		if (tok_it == toks.end()) {
+		if (tok_it+1 == toks.end()) {
 			clog::error(current_function + " is not returning a value. All functions must return a value.", line_number);
 			return;
 		}
@@ -685,7 +687,7 @@ namespace token_function {
 		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
 		std::string ret = "mov" + types::suffixes[type_vec_index];
 		RegisterRef rax = get_register("rax");
-		ret += ' ' + set_operand_prefix(*(tok_it+1)) + ", " + rax->get().from_size(types::sizes[type_vec_index]) + '\n';
+		ret += ' ' + set_operand_prefix(*(tok_it+1)) + ", " + rax->get().name_from_size(types::sizes[type_vec_index]) + '\n';
 		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
@@ -694,24 +696,25 @@ namespace token_function {
 	}
 
 	void if_statement(TokIt tok_it, int &if_index) {
-		int rhs_size = get_size_of_operand(*(tok_it+3)); 
-		int lhs_size = get_size_of_operand(*(tok_it+1));
-		int cmp_size = std::max({ lhs_size, rhs_size });
-		
 		std::string rhs = *(tok_it+3);
 		std::string lhs = *(tok_it+1);
+
+		int rhs_size = get_size_of_operand(rhs); 
+		int lhs_size = get_size_of_operand(lhs);
+		int cmp_size = std::max({ lhs_size, rhs_size });
 		
 		if (lhs_size < cmp_size) {
 			RegisterRef reg = get_available_register();
-			out.push_back(get_mov_instruction(lhs_size, cmp_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().from_size(cmp_size) + '\n');
-			lhs = reg->get().from_size(cmp_size);
-		} else if (rhs_size < cmp_size) {
+			out.insert(out.end()-2, get_mov_instruction(lhs_size, cmp_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(cmp_size) + '\n');
+			lhs = reg->get().name_from_size(cmp_size);
+		} else/* if (rhs_size < cmp_size)*/ {
 			RegisterRef reg = get_available_register();
-			out.push_back(get_mov_instruction(rhs_size, cmp_size) + ' ' + set_operand_prefix(rhs) + ", " + reg->get().from_size(cmp_size) + '\n');
-			rhs = reg->get().from_size(cmp_size);
+			out.insert(out.end()-2, get_mov_instruction(rhs_size, cmp_size) + ' ' + set_operand_prefix(rhs) + ", " + reg->get().name_from_size(cmp_size) + '\n');
+			rhs = reg->get().name_from_size(cmp_size);
 		}
-		
-		out.push_back("cmp" + types::suffixes[index_of(types::sizes, cmp_size)] +
+
+		// Insert before call instruction
+		out.insert(out.end()-2, "cmp" + types::suffixes[index_of(types::sizes, cmp_size)] +
 			' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(lhs) + '\n'
 		);
 
@@ -730,9 +733,10 @@ namespace token_function {
 			op = "l";
 		}
 		
-		out.push_back('j' + op + " this, that\n");
-		out.push_back("call " + *(tok_it-1) + '\n');
-		out.push_back(".IF" + std::to_string(if_index));
+		// Insert before call instruction but after cmp instruction
+		out.insert(out.end()-2, 'j' + op + " .IF" + std::to_string(if_index) + '\n');
+		// After call instruction
+		out.push_back(".IF" + std::to_string(if_index) + ":\n");
 		if_index++;
 	}
 }
@@ -741,6 +745,13 @@ int main(int argc, char *argv[]) {
 	if (argc < 2) {
 		clog::error("Must input file to compile.", 0);
 		return 0;
+	}
+
+	bool print_line_in_asm = false;
+	if (argc == 3) {
+		if (std::string(argv[3]) == "true") {
+			print_line_in_asm = true;
+		}
 	}
 	
 	std::ifstream read;
@@ -781,16 +792,19 @@ int main(int argc, char *argv[]) {
 			WHILE_US_FIND_TOKEN("#") {
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(functions) {
-				if (*(tok_it-1) != "#") {
-					token_function::function_call(tok_it);
-				}
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(variable_names) {
 				size_t vec_index = index_of(variable_names, *tok_it);
 				if (variable_stack_locations[vec_index] != INT_MAX) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
 				}
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKENS(functions) {
+				if (tok_it == _us_ltoks.begin()) {
+					token_function::function_call(tok_it);
+				}
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("?") {
+				token_function::if_statement(tok_it, if_index);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
 				token_function::math(tok_it);
@@ -816,9 +830,6 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("?") {
-				token_function::if_statement(tok_it, if_index);
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();

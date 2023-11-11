@@ -1,22 +1,22 @@
 str s "Enter a single-digit number: "
-str five "Your number equals 5."
-str notfive "Your number doesn't equal 5."
+str five "Your number equals 5.\n"
+str notfive "Your number doesn't equal 5.\n"
 
 #fiveoutput
-	>w 1 five 21
+	>w 1 five 22
 #> 0
 
 #notfiveoutput
-	>w 1 notfive 28
-#>
+	>w 1 notfive 29
+#> 0
 
 #main
 	ch num 0
 	>w 1 s 29
 	>r 0 &num 1
 	
-	fiveoutput ? num == 5
-	notfiveoutput ? num != 5
+	fiveoutput ? num == 53
+	notfiveoutput ? num != 53
 
 	>e 0
 #> 0
