@@ -489,6 +489,21 @@ std::string get_mov_instruction(int lhs, int rhs) {
 		return "mov" + types::suffixes[index_of(types::sizes, lhs)];
 }
 
+std::string cast_var(const std::string &var, int size) {
+	int var_size = get_size_of_operand(var);
+	
+	if (var_size == size) return var;
+
+	if (var_size == 4 && size == 8) {
+		RegisterRef rax = get_register("rax");
+		if (rax->get().occupied) {
+			RegisterRef temp_reg = get_available_register();
+			out.push_back("movq %rax, " + temp_reg->get().name_from_size(8) + '\n');
+		}
+		out.push_back(
+	}
+}
+
 namespace token_function {
 	void dereference(TokIt tok_it) {
 		_us_ltoks.erase(tok_it);

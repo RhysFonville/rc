@@ -5,13 +5,26 @@
 main:
 	pushq	%rbp
 	movq	%rsp, %rbp
-	movb	$3, -1(%rbp)
-	movb	$3, -2(%rbp)
-	movzbl	-1(%rbp), %eax
-	cmpb	-2(%rbp), %al
-	jne	.L2
-	movb	$4, -1(%rbp)
-.L2:
+	movq	$323445, -8(%rbp)
+	movl	$45392, -12(%rbp)
+	movw	$1233, -14(%rbp)
+	movb	$34, -15(%rbp)
+	movl	$1410065407, -20(%rbp)
+	movl	-12(%rbp), %eax
+	cltq
+	movq	%rax, -8(%rbp)
+	movq	-8(%rbp), %rax
+	movl	%eax, -12(%rbp)
+	movswl	-14(%rbp), %eax
+	movl	%eax, -12(%rbp)
+	movl	-12(%rbp), %eax
+	movw	%ax, -14(%rbp)
+	movq	-8(%rbp), %rax
+	movw	%ax, -14(%rbp)
+	movq	-8(%rbp), %rax
+	movb	%al, -15(%rbp)
+	movsbl	-15(%rbp), %eax
+	movl	%eax, -12(%rbp)
 	movl	$0, %eax
 	popq	%rbp
 	ret
