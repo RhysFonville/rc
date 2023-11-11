@@ -696,7 +696,7 @@ namespace token_function {
 		current_function = "";
 	}
 	
-	void brace_begin(TokIt tok_it, const std::vector<std::string> &toks, std::vector<Brace> &braces, int &braces_index) {
+	/*void brace_begin(TokIt tok_it, const std::vector<std::string> &toks, std::vector<Brace> &braces, int &braces_index) {
 		braces.push_back({ ++braces_index, (index_of(toks, std::string("if"))) != -1 ? BraceType::If : BraceType::Neutral });
 	}
 
@@ -747,7 +747,7 @@ namespace token_function {
 
 		out.push_back('j' + op + " .IF" + std::to_string(if_labels.size()) + '\n');
 		if_labels.push_back("IF" + std::to_string(if_labels.size()));
-	}
+	}*/
 }
 
 int main(int argc, char *argv[]) {
@@ -767,11 +767,11 @@ int main(int argc, char *argv[]) {
 	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
 	
-	std::vector<Brace> open_braces = { };
+	/*std::vector<Brace> open_braces = { };
 	int braces_index = 0u;
 
 	std::vector<std::string> if_labels = { };
-	std::vector<int> if_labels_brace_index = { };
+	std::vector<int> if_labels_brace_index = { };*/
 
 	// --------- MAIN ---------
 	out.push_back(".text\n");
@@ -834,7 +834,7 @@ int main(int argc, char *argv[]) {
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("if") {
+			/*WHILE_US_FIND_TOKEN("if") {
 				token_function::if_statement(tok_it, if_labels);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("{") {
@@ -842,7 +842,7 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("}") {
 				token_function::brace_end(tok_it, open_braces, braces_index, if_labels, if_labels_brace_index);
-			} WHILE_FIND_TOKEN_END
+			} WHILE_FIND_TOKEN_END*/
 
 			disallowed_toks.clear();
 		}
