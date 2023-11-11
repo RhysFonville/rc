@@ -16,36 +16,40 @@
 		tok_it = _ltoks.begin(); \
 		while (true) { \
 			tok_it = remove_constness(_ltoks, find_tok(_ltoks, tok, tok_it)); \
-			if (tok_it != _ltoks.end())
-
+			if (tok_it != _ltoks.end()) { \
+				out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+ 
 #define WHILE_FIND_TOKEN_END \
-			else { \
+			} else { \
 				break; \
 			} \
 			tok_it++; \
 		} \
-	}
+	} \
 
 #define WHILE_US_FIND_TOKEN(tok) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #tok) == disallowed_toks.end()) { \
 		tok_it = _us_ltoks.begin(); \
 		while (true) { \
 			tok_it = remove_constness(_us_ltoks, find_tok(_us_ltoks, tok, tok_it)); \
-			if (tok_it != _us_ltoks.end())
+			if (tok_it != _us_ltoks.end()) { \
+				out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
 
 #define WHILE_FIND_TOKENS(toks) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #toks) == disallowed_toks.end()) { \
 		tok_it = _ltoks.begin(); \
 		while (true) { \
 			tok_it = remove_constness(_ltoks, find_first_tok(_ltoks, toks, tok_it)); \
-			if (tok_it != _ltoks.end())
+			if (tok_it != _ltoks.end()) { \
+				out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
 
 #define WHILE_US_FIND_TOKENS(toks) \
 	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #toks) == disallowed_toks.end()) { \
 		tok_it = _us_ltoks.begin(); \
 		while (true) { \
 			tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
-			if (tok_it != _us_ltoks.end())
+			if (tok_it != _us_ltoks.end()) { \
+				out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
 
 using TokIt = std::vector<std::string>::iterator;
 
@@ -95,7 +99,7 @@ struct Register {
 
 	std::string from_size(int size) {
 		if (size == 1) {
-			return names.bh;
+			return names.bl;
 		} else if (size == 2) {
 			return names.w;	
 		} else if (size == 4) {
@@ -327,6 +331,11 @@ size_t index_of(const std::vector<T> &vec, const T &val) {
 	return from_it(vec, std::find(vec.begin(), vec.end(), val));
 }
 
+template <typename T>
+size_t index_of_last(const std::vector<T> &vec, const T &val) {
+	return from_it(vec, std::find(vec.rbegin(), vec.rend(), val).base());
+}
+
 std::vector<std::string> replace_toks(std::vector<std::string> toks, size_t begin, size_t end, const std::string &str) {
 	toks.erase(toks.begin()+begin, toks.begin()+end+1);
 	toks.insert(toks.begin()+begin, str);
@@ -473,7 +482,7 @@ std::string sign_extension_mov(int lhs, int rhs) {
 }
 
 std::string zero_extension_mov(int lhs, int rhs) {
-	return std::string("movz") + size_to_letter(rhs) + size_to_letter(lhs);
+	return std::string("movz") + size_to_letter(lhs) + size_to_letter(rhs);
 }
 
 std::string get_mov_instruction(int lhs, int rhs) {
@@ -522,9 +531,9 @@ namespace token_function {
 			lhs_size = get_size_of_operand(*(tok_it-1), arithmatic_size); 
 			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
 			
-			std::string lhs_str = get_mov_instruction(lhs_size, arithmatic_size) + ' ';
+			std::string lhs_str = get_mov_instruction(arithmatic_size, lhs_size) + ' ';
 			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().from_size(lhs_size)  + '\n';
-			std::string rhs_str = get_mov_instruction(rhs_size, arithmatic_size) + ' ';
+			std::string rhs_str = get_mov_instruction(arithmatic_size, rhs_size) + ' ';
 			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
@@ -591,7 +600,7 @@ namespace token_function {
 		
 			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
 			
-			std::string str = get_mov_instruction(get_size_of_operand(*(tok_it+2)), types::sizes[type_vec_index]) + ' ';
+			std::string str = get_mov_instruction(get_size_of_operand(*(tok_it+2), types::sizes[type_vec_index]), types::sizes[type_vec_index]) + ' ';
 			str += set_operand_prefix(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
 			out.push_back(str);
 			variable_names.push_back(*(tok_it+1));
@@ -602,13 +611,13 @@ namespace token_function {
 
 	void equals(TokIt tok_it) {
 		std::string rhs = *(tok_it+1);
-		int rhs_size = get_size_of_operand(rhs);
-		size_t type_vec_index = index_of(types::sizes, rhs_size);
+		int rhs_size = get_size_of_operand(rhs, get_size_of_operand(*(tok_it-1)));
 
 		if (RegisterRef rhs_reg = get_register(*(tok_it+1)); rhs_reg.has_value()) {
 			rhs_reg->get().occupied = false;
 		} else { // "mov mem, mem" is not allowed!!
 			RegisterRef reg = get_available_register();
+			size_t type_vec_index = index_of(types::sizes, rhs_size);
 			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + set_operand_prefix(rhs) + ", " + reg->get().from_size(rhs_size) + '\n');
 			rhs = reg->get().from_size(rhs_size);
 			reg->get().occupied = false;
@@ -687,24 +696,42 @@ namespace token_function {
 		current_function = "";
 	}
 	
-	void brace_begin(TokIt tok_it, std::vector<std::string> toks, std::vector<Brace> &braces, int &braces_index) {
-		braces.push_back({ ++braces_index, (index_of(toks, "if") != -1 ? BraceType::If : BraceType::Neutral });
+	void brace_begin(TokIt tok_it, const std::vector<std::string> &toks, std::vector<Brace> &braces, int &braces_index) {
+		braces.push_back({ ++braces_index, (index_of(toks, std::string("if"))) != -1 ? BraceType::If : BraceType::Neutral });
 	}
 
-	void brace_end(TokIt tok_it, std::vector<Brace> &braces, int &braces_index, std::vector<std::string> &if_labels) {
-		if (braces[braces_index].type == BraceType::If) {
-			out.push_back(if_labels); dflkgjsdlfkgj // do this
+	void brace_end(TokIt tok_it, std::vector<Brace> &braces, int &braces_index, const std::vector<std::string> &if_labels, const std::vector<int> &if_labels_brace_index) {
+		if (braces[braces_index-1].type == BraceType::If) {
+			out.push_back('.' + if_labels[index_of_last(if_labels_brace_index, braces_index)] + ":\n");
 		}
-		braces.erase(braces_index--);
+		braces.erase(braces.begin()+braces_index-1);
+		braces_index--;
 	}
 
 	void if_statement(TokIt tok_it, std::vector<std::string> &if_labels) {
-		out.push_back("cmp" + types::suffixes[index_of(types::sizes, get_size_of_operand(*(tok_it+1)))] +
-			' ' + *(tok_it+1) + ", " + *(tok_it+3) + '\n'
+		int rhs_size = get_size_of_operand(*(tok_it+3)); 
+		int lhs_size = get_size_of_operand(*(tok_it+1));
+		int cmp_size = std::max({ lhs_size, rhs_size });
+		
+		std::string rhs = *(tok_it+3);
+		std::string lhs = *(tok_it+1);
+		
+		if (lhs_size < cmp_size) {
+			RegisterRef reg = get_available_register();
+			out.push_back(get_mov_instruction(lhs_size, cmp_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().from_size(cmp_size) + '\n');
+			lhs = reg->get().from_size(cmp_size);
+		} else if (rhs_size < cmp_size) {
+			RegisterRef reg = get_available_register();
+			out.push_back(get_mov_instruction(rhs_size, cmp_size) + ' ' + set_operand_prefix(rhs) + ", " + reg->get().from_size(cmp_size) + '\n');
+			rhs = reg->get().from_size(cmp_size);
+		}
+		
+		out.push_back("cmp" + types::suffixes[index_of(types::sizes, cmp_size)] +
+			' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(lhs) + '\n'
 		);
-
+		
 		std::string op = "";
-		if (*(tok_it+2) == "=") {
+		if (*(tok_it+2) == "==") {
 			op = "ne";
 		} else if (*(tok_it+2) == "!=") {
 			op = "e";
@@ -718,7 +745,7 @@ namespace token_function {
 			op = "l";
 		}
 
-		out.push_back('j' + op + "IF" + std::to_string(if_labels.size()) + '\n');
+		out.push_back('j' + op + " .IF" + std::to_string(if_labels.size()) + '\n');
 		if_labels.push_back("IF" + std::to_string(if_labels.size()));
 	}
 }
@@ -741,9 +768,10 @@ int main(int argc, char *argv[]) {
 	std::string current_function = "";
 	
 	std::vector<Brace> open_braces = { };
-	int brace_index = 0u;
+	int braces_index = 0u;
 
 	std::vector<std::string> if_labels = { };
+	std::vector<int> if_labels_brace_index = { };
 
 	// --------- MAIN ---------
 	out.push_back(".text\n");
@@ -808,6 +836,12 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("if") {
 				token_function::if_statement(tok_it, if_labels);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("{") {
+				token_function::brace_begin(tok_it, _us_ltoks, open_braces, braces_index);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("}") {
+				token_function::brace_end(tok_it, open_braces, braces_index, if_labels, if_labels_brace_index);
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();

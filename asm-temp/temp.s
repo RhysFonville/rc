@@ -6,12 +6,11 @@ main:
 	pushq	%rbp
 	movq	%rsp, %rbp
 	movl	$3, -4(%rbp)
-	movb	$5, -5(%rbp)
+	movb	$3, -5(%rbp)
 	movsbl	-5(%rbp), %eax
 	cmpl	%eax, -4(%rbp)
 	jne	.L2
-	movl	-4(%rbp), %eax
-	movb	%al, -5(%rbp)
+	movl	$4, -4(%rbp)
 .L2:
 	movl	$0, %eax
 	popq	%rbp

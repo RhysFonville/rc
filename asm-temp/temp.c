@@ -2,9 +2,9 @@
 
 int main() {
 	int i = 3;
-	char a = 5;
-	if (i == a) {
-		a = i;
+	char c = 3;
+	if (i == c) {
+		i = 4;
 	}
 	
 

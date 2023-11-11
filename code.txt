@@ -1,5 +1,18 @@
+str s "Enter a single-digit number: "
+str five "Your number equals 5."
+str notfive "Your number doesn't equal 5."
+
 #main
-	ch c 96 / 2 
-	>w 1 &c 1
+	ch num 0
+	>w 1 s 29
+	>r 0 &num 1
+	
+	if num == 5 {
+		>w 1 five 21
+	}
+	if num != 5 {
+		>w 1 notfive 28
+	}
+
 	>e 0
 #> 0
