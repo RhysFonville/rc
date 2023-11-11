@@ -1,12 +1,12 @@
 # My terrible language
 ## A custom compiler for a language that prioritizes typing as little as possible.
 
+
 ### To install/compile/run:
 
 1. Clone the repository into the directory of your choice (For example, ~/Documents/)
 ```
 git clone git@github.com:RhysFonville/rc.git
-
 ```
 The rc directory that is cloned is where the executable for the compiler will be. (./rc/rc)
 
@@ -16,6 +16,7 @@ I recommend keeping this directory in the directory that you will be working and
 ```
 ./rc/rc mycode.txt
 ```
+
 
 ### Syntax of the language
 
@@ -88,6 +89,7 @@ Base functions (or syscalls) can be easily identified in rc since it starts with
 >w 1 str 10
 ```
 `w` stands for write, `1` is to specify stdout, str is the string variable assumed to be defined earlier in the program, and 10 is the number of characters to write.
+
 
 ### Tests
 
