@@ -2,17 +2,21 @@ str s "Enter a single-digit number: "
 str five "Your number equals 5."
 str notfive "Your number doesn't equal 5."
 
+#fiveoutput
+	>w 1 five 21
+#> 0
+
+#notfiveoutput
+	>w 1 notfive 28
+#>
+
 #main
 	ch num 0
 	>w 1 s 29
 	>r 0 &num 1
 	
-	if num == 5 {
-		>w 1 five 21
-	}
-	if num != 5 {
-		>w 1 notfive 28
-	}
+	fiveoutput ? num == 5
+	notfiveoutput ? num != 5
 
 	>e 0
 #> 0

@@ -1,12 +1,9 @@
 #include <algorithm>
-#include <clocale>
 #include <functional>
 #include <iostream>
 #include <fstream>
 #include <iterator>
 #include <string>
-#include <type_traits>
-#include <utility>
 #include <climits>
 #include <optional>
 #include "Token.h"
@@ -695,6 +692,49 @@ namespace token_function {
 		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
 		current_function = "";
 	}
+
+	void if_statement(TokIt tok_it, int &if_index) {
+		int rhs_size = get_size_of_operand(*(tok_it+3)); 
+		int lhs_size = get_size_of_operand(*(tok_it+1));
+		int cmp_size = std::max({ lhs_size, rhs_size });
+		
+		std::string rhs = *(tok_it+3);
+		std::string lhs = *(tok_it+1);
+		
+		if (lhs_size < cmp_size) {
+			RegisterRef reg = get_available_register();
+			out.push_back(get_mov_instruction(lhs_size, cmp_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().from_size(cmp_size) + '\n');
+			lhs = reg->get().from_size(cmp_size);
+		} else if (rhs_size < cmp_size) {
+			RegisterRef reg = get_available_register();
+			out.push_back(get_mov_instruction(rhs_size, cmp_size) + ' ' + set_operand_prefix(rhs) + ", " + reg->get().from_size(cmp_size) + '\n');
+			rhs = reg->get().from_size(cmp_size);
+		}
+		
+		out.push_back("cmp" + types::suffixes[index_of(types::sizes, cmp_size)] +
+			' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(lhs) + '\n'
+		);
+
+		std::string op = "";
+		if (*(tok_it+2) == "==") {
+			op = "ne";
+		} else if (*(tok_it+2) == "!=") {
+			op = "e";
+		} else if (*(tok_it+2) == "<") {
+			op = "ge";
+		} else if (*(tok_it+2) == "<=") {
+			op = "g";
+		} else if (*(tok_it+2) == ">") {
+			op = "le";
+		} else if (*(tok_it+2)  == ">=") {
+			op = "l";
+		}
+		
+		out.push_back('j' + op + " this, that\n");
+		out.push_back("call " + *(tok_it-1) + '\n');
+		out.push_back(".IF" + std::to_string(if_index));
+		if_index++;
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -714,6 +754,8 @@ int main(int argc, char *argv[]) {
 	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
 	
+	int if_index = 0;
+
 	// --------- MAIN ---------
 	out.push_back(".text\n");
 	// ------------------------
@@ -774,6 +816,9 @@ int main(int argc, char *argv[]) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("?") {
+				token_function::if_statement(tok_it, if_index);
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();
