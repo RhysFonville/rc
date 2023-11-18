@@ -481,14 +481,14 @@ std::string get_mov_instruction(int lhs, int rhs) {
 std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
 	std::swap(lhs, rhs);
 	
-	int lhs_size;
-	if (default_size == -1) {
-		lhs_size = get_size_of_operand(lhs);
-	} else {
-		lhs_size = get_size_of_operand(lhs, default_size);
-	}
+	int lhs_size = get_size_of_operand(lhs);
 	int rhs_size = get_size_of_operand(rhs, lhs_size);
-	int max_size = std::max(lhs_size, rhs_size);
+	int max_size;
+	if (default_size == -1) {
+		max_size = std::max(lhs_size, rhs_size);
+	} else {
+		max_size = std::max({ lhs_size, rhs_size, default_size });
+	}
 	
 	bool lhs_is_reg = true;
 	if (!get_register(lhs).has_value()) {
@@ -524,6 +524,12 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	}
 	
 	return { lhs, rhs };
+}
+
+void unoccupy_if_register(const std::string &reg_name) {
+	if (RegisterRef reg = get_register(reg_name); reg.has_value()) {
+		reg->get().occupied = false;
+	}
 }
 
 namespace token_function {
@@ -581,7 +587,14 @@ namespace token_function {
 			rhs->get().occupied = false;
 			*/
 
-			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1));
+			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1), 4);
+			out.push_back(
+				cmd + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] + ' ' +
+				lhs_rhs.first + ", " + lhs_rhs.second + '\n'
+			); 
+
+			unoccupy_if_register(lhs_rhs.first);
+			unoccupy_if_register(lhs_rhs.second);
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
@@ -662,7 +675,7 @@ namespace token_function {
 
 		std::string out_str = "";
 		out_str += get_mov_instruction(get_size_of_operand(lhs_rhs.first), get_size_of_operand(lhs_rhs.second)) + ' ';
-		out_str += set_operand_prefix(lhs_rhs.first) + ",";
+		out_str += set_operand_prefix(lhs_rhs.first) + ", ";
 		out_str += set_operand_prefix(lhs_rhs.second) + '\n';
 
 		out.push_back(out_str);

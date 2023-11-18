@@ -5,28 +5,12 @@
 	int i 45392
 	sht s 1233
 	ch  c 34
+	
+	c = 50
+	s = 54
 
-	int i_overflow 9999999999
-	
-	l = i
-	i = l
-	
-	l = s
-	s = l
+	i = c+s
+	>w 1 &i 1
 
-	l = c
-	c = l
-	
-	
-	i = s
-	s = i
-	
-	i = c
-	c = i
-
-	
-	s = c
-	c = s
-
-	>e 0
+>e 0
 #> 0
