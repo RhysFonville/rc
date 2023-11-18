@@ -121,7 +121,7 @@ std::vector<int> variable_sizes = { };
 std::vector<int> variable_stack_locations = { };
 
 std::vector<Register> registers = {
-	Register("rbx","ebx","ax","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
+	Register("rbx","ebx","bx","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
 	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
 	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
 };
@@ -464,7 +464,7 @@ char size_to_letter(int size) {
 }
 
 std::string sign_extension_mov(int lhs, int rhs) {
-	return std::string("movs") + size_to_letter(rhs) + size_to_letter(lhs);
+	return std::string("movs") + size_to_letter(lhs) + size_to_letter(rhs);
 }
 
 std::string zero_extension_mov(int lhs, int rhs) {
@@ -473,17 +473,13 @@ std::string zero_extension_mov(int lhs, int rhs) {
 
 std::string get_mov_instruction(int lhs, int rhs) {
 	if (lhs < rhs)
-		return zero_extension_mov(lhs, rhs);
+		return sign_extension_mov(lhs, rhs);
 	else
-		return "mov" + types::suffixes[index_of(types::sizes, lhs)];
+		return "mov" + types::suffixes[index_of(types::sizes, rhs)];
 }
 
 std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs) {
 	std::swap(lhs, rhs);
-	
-	std::cout << "old\n";
-	std::cout << lhs << std::endl;
-	std::cout << rhs << std::endl;
 	
 	int lhs_size = get_size_of_operand(lhs);
 	int rhs_size = get_size_of_operand(rhs, lhs_size);
@@ -522,10 +518,6 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 		}
 	}
 	
-	std::cout << "new\n";
-	std::cout << lhs << std::endl;
-	std::cout << rhs << std::endl;
-
 	return { lhs, rhs };
 }
 
@@ -647,39 +639,24 @@ namespace token_function {
 	}
 
 	void equals(TokIt tok_it) {
-		/*std::string rhs = *(tok_it+1);
-		int rhs_size = get_size_of_operand(rhs, get_size_of_operand(*(tok_it-1)));
-
-		if (RegisterRef rhs_reg = get_register(*(tok_it+1)); rhs_reg.has_value()) {
-			rhs_reg->get().occupied = false;
-		} else { // "mov mem, mem" is not allowed!!
-			RegisterRef reg = get_available_register();
-			size_t type_vec_index = index_of(types::sizes, rhs_size);
-			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + set_operand_prefix(rhs) + ", " + reg->get().name_from_size(rhs_size) + '\n');
-			rhs = reg->get().name_from_size(rhs_size);
-			reg->get().occupied = false;
-		}
-		
-		out.push_back(get_mov_instruction(rhs_size, get_size_of_operand(*(tok_it-1))) + ' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(*(tok_it-1)) + '\n');*/
-
 		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1));
 		
-		out.push_back("// Equals\n");
-		
+		int dest_size = get_size_of_operand(lhs_rhs.second);
+
+		if (RegisterRef reg = get_register(lhs_rhs.first); reg.has_value()) {
+			reg->get().occupied = false;
+			lhs_rhs.first = reg->get().name_from_size(dest_size);
+		}
+		if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
+			reg->get().occupied = false;
+		}
+
 		std::string out_str = "";
-		// TODO: get_mov_instruction properly doesn't work.
 		out_str += get_mov_instruction(get_size_of_operand(lhs_rhs.first), get_size_of_operand(lhs_rhs.second)) + ' ';
 		out_str += set_operand_prefix(lhs_rhs.first) + ",";
 		out_str += set_operand_prefix(lhs_rhs.second) + '\n';
 
 		out.push_back(out_str);
-
-		if (RegisterRef reg = get_register(lhs_rhs.first); reg.has_value()) {
-			reg->get().occupied = false;
-		}
-		if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
-			reg->get().occupied = false;
-		}
 	}
 
 	void base_functions(TokIt tok_it) {
@@ -840,9 +817,6 @@ int begin_compile(std::vector<std::string> args) {
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
 			
-			std::cout << "\n\n" << l << "\n\n";
-			out.push_back("//" + l + '\n');
-
 			WHILE_US_FIND_TOKEN("//") {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {

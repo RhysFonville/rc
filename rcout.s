@@ -23,23 +23,55 @@ movl $9999999999, -19(%rbp)
 // Cast
 movl -12(%rbp), %eax
 cltq
-// Equals
 movq %rax,-8(%rbp)
 //i = l
 // Cast
 movq -8(%rbp), %rbx
-// Equals
-movq %rbx,-12(%rbp)
+movl %ebx,-12(%rbp)
+//l = s
+// Cast
+movswq -14(%rbp), %rbx
+movq %rbx,-8(%rbp)
+//s = l
+// Cast
+movq -8(%rbp), %rbx
+movw %bx,-14(%rbp)
+//l = c
+// Cast
+movsbq -15(%rbp), %rbx
+movq %rbx,-8(%rbp)
 //c = l
 // Cast
 movq -8(%rbp), %rbx
-// Equals
-movq %rbx,-15(%rbp)
-//l = c
+movb %al,-15(%rbp)
+//i = s
 // Cast
-movzbq -15(%rbp), %rbx
-// Equals
-movq %rbx,-8(%rbp)
+movswl -14(%rbp), %ebx
+movl %ebx,-12(%rbp)
+//s = i
+// Cast
+movl -12(%rbp), %ebx
+movw %bx,-14(%rbp)
+//i = c
+// Cast
+movsbl -15(%rbp), %ebx
+movl %ebx,-12(%rbp)
+//c = i
+// Cast
+movl -12(%rbp), %ebx
+movb %al,-15(%rbp)
+//s = c
+// Cast
+movsbw -15(%rbp), %bx
+movw %bx,-14(%rbp)
+//c = s
+// Cast
+movw -14(%rbp), %bx
+movb %al,-15(%rbp)
+//>e 0
+movq $60, %rax
+movq $0, %rdi
+syscall
 //#> 0
 movb $0, %al
 leave

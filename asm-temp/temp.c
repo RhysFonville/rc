@@ -10,9 +10,23 @@ int main() {
 	
 	l = i;
 	i = l;
+	
+	l = s;
+	s = l;
 
-	c = l;
 	l = c;
+	c = l;
+	
+	
+	i = s;
+	s = i;
 
+	i = c;
+	c = i;
+
+
+	s = c;
+	c = s;
+	
 	return 0;
 }

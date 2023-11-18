@@ -22,15 +22,57 @@ main:
 	movq	-8(%rbp), %rax
 	movl	%eax, -12(%rbp)
 	
-	// c = l
-	// (l to c)
+	// l = s
+	// (s to l)
+	movswq	-14(%rbp), %rax
+	movq	%rax, -8(%rbp)
+	
+	// s = l
+	// (l to s)
 	movq	-8(%rbp), %rax
-	movb	%al, -15(%rbp)
-
+	movw	%ax, -14(%rbp)
+	
 	// l = c
 	// (c to l)
 	movsbq	-15(%rbp), %rax
 	movq	%rax, -8(%rbp)
+	
+	// c = l
+	// (l to c)
+	movq	-8(%rbp), %rax
+	movb	%al, -15(%rbp)
+	
+	
+	// i = s
+	// (s to i)
+	movswl	-14(%rbp), %eax
+	movl	%eax, -12(%rbp)
+	
+	// s = i
+	// (i to s)
+	movl	-12(%rbp), %eax
+	movw	%ax, -14(%rbp)
+	
+	// i = c
+	// (c to i)
+	movsbl	-15(%rbp), %eax
+	movl	%eax, -12(%rbp)
+	
+	// c = i
+	// (i to c)
+	movl	-12(%rbp), %eax
+	movb	%al, -15(%rbp)
+	
+	
+	// s = c
+	// (c to s)
+	movsbw	-15(%rbp), %ax
+	movw	%ax, -14(%rbp)
+	
+	// c = s
+	// (s to c)
+	movzwl	-14(%rbp), %eax
+	movb	%al, -15(%rbp)
 	
 	movl	$0, %eax
 	popq	%rbp
