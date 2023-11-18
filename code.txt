@@ -1,22 +1,32 @@
-str s "Enter a single-digit number: "
-str five "Your number equals 5.\n"
-str notfive "Your number doesn't equal 5.\n"
-
-#fiveoutput
-	>w 1 five 22
-#> 0
-
-#notfiveoutput
-	>w 1 notfive 29
-#> 0
+// TEST #1 - VARIABLES
 
 #main
-	ch num 0
-	>w 1 s 29
-	>r 0 &num 1
+	lng l 323445
+	int i 45392
+	sht s 1233
+	ch  c 34
+
+	int i_overflow 9999999999
 	
-	fiveoutput ? num == 53
-	notfiveoutput ? num != 53
+	l = i
+	i = l
+	
+	l = s
+	s = l
+
+	l = c
+	c = l
+	
+	
+	i = s
+	s = i
+	
+	i = c
+	c = i
+
+	
+	s = c
+	c = s
 
 	>e 0
 #> 0

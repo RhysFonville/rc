@@ -9,44 +9,40 @@
 #include "Token.h"
 
 #define WHILE_FIND_TOKEN(tok) \
-	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #tok) == disallowed_toks.end()) { \
-		tok_it = _ltoks.begin(); \
-		while (true) { \
-			tok_it = remove_constness(_ltoks, find_tok(_ltoks, tok, tok_it)); \
-			if (tok_it != _ltoks.end()) { \
-				if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+	tok_it = _ltoks.begin(); \
+	while (true) { \
+		tok_it = remove_constness(_ltoks, find_tok(_ltoks, tok, tok_it)); \
+		if (tok_it != _ltoks.end()) { \
+			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
  
 #define WHILE_FIND_TOKEN_END \
-			} else { \
-				break; \
-			} \
-			tok_it++; \
+		} else { \
+			break; \
 		} \
+		tok_it++; \
 	} \
 
 #define WHILE_US_FIND_TOKEN(tok) \
-	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #tok) == disallowed_toks.end()) { \
-		tok_it = _us_ltoks.begin(); \
-		while (true) { \
-			tok_it = remove_constness(_us_ltoks, find_tok(_us_ltoks, tok, tok_it)); \
-			if (tok_it != _us_ltoks.end()) { \
-				if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+	tok_it = _us_ltoks.begin(); \
+	while (true) { \
+		tok_it = remove_constness(_us_ltoks, find_tok(_us_ltoks, tok, tok_it)); \
+		if (tok_it != _us_ltoks.end()) { \
+			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
 
 #define WHILE_FIND_TOKENS(toks) \
-	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #toks) == disallowed_toks.end()) { \
-		tok_it = _ltoks.begin(); \
-		while (true) { \
-			tok_it = remove_constness(_ltoks, find_first_tok(_ltoks, toks, tok_it)); \
-			if (tok_it != _ltoks.end()) { \
-				if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
+	tok_it = _ltoks.begin(); \
+	while (true) { \
+		tok_it = remove_constness(_ltoks, find_first_tok(_ltoks, toks, tok_it)); \
+		if (tok_it != _ltoks.end()) { \
+			if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
 
 #define WHILE_US_FIND_TOKENS(toks) \
-	if (std::find(disallowed_toks.begin(), disallowed_toks.end(), #toks) == disallowed_toks.end()) { \
-		tok_it = _us_ltoks.begin(); \
-		while (true) { \
-			tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
-			if (tok_it != _us_ltoks.end()) { \
-				if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
+	tok_it = _us_ltoks.begin(); \
+	while (true) { \
+		tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
+		if (tok_it != _us_ltoks.end()) { \
+			if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
+
 
 using TokIt = std::vector<std::string>::iterator;
 
@@ -117,16 +113,6 @@ struct Register {
 
 using RegisterRef = std::optional<std::reference_wrapper<Register>>; 
 
-enum class BraceType {
-	Neutral,
-	If
-};
-
-struct Brace {
-	int brace_index;
-	BraceType type;
-};
-
 std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
@@ -135,7 +121,7 @@ std::vector<int> variable_sizes = { };
 std::vector<int> variable_stack_locations = { };
 
 std::vector<Register> registers = {
-	Register("rbx","ebx","ax","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
+	Register("rbx","ebx","bx","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
 	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
 	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
 };
@@ -311,8 +297,11 @@ std::vector<std::string>::const_iterator find_tok(const std::vector<std::string>
 
 std::vector<std::string>::const_iterator find_first_tok(const std::vector<std::string> &ltoks, const std::vector<std::string> &toks_to_find,
 				const std::vector<std::string>::const_iterator &begin) {
-	for (const std::string &tok : toks_to_find) {
-		if (auto it = std::find(begin, ltoks.end(), tok); it != ltoks.end()) return it;
+	
+	for (auto it = begin; it != ltoks.end(); it++) {
+		for (const std::string &tok : toks_to_find) {
+			if (*it == tok) return it;
+		}
 	}
 
 	return ltoks.end();
@@ -475,7 +464,7 @@ char size_to_letter(int size) {
 }
 
 std::string sign_extension_mov(int lhs, int rhs) {
-	return std::string("movs") + size_to_letter(rhs) + size_to_letter(lhs);
+	return std::string("movs") + size_to_letter(lhs) + size_to_letter(rhs);
 }
 
 std::string zero_extension_mov(int lhs, int rhs) {
@@ -484,9 +473,52 @@ std::string zero_extension_mov(int lhs, int rhs) {
 
 std::string get_mov_instruction(int lhs, int rhs) {
 	if (lhs < rhs)
-		return zero_extension_mov(lhs, rhs);
+		return sign_extension_mov(lhs, rhs);
 	else
-		return "mov" + types::suffixes[index_of(types::sizes, lhs)];
+		return "mov" + types::suffixes[index_of(types::sizes, rhs)];
+}
+
+std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs) {
+	std::swap(lhs, rhs);
+	
+	int lhs_size = get_size_of_operand(lhs);
+	int rhs_size = get_size_of_operand(rhs, lhs_size);
+	int max_size = std::max(lhs_size, rhs_size);
+	
+	bool lhs_is_reg = true;
+	if (!get_register(lhs).has_value()) {
+		lhs_is_reg = false;
+	}
+	bool rhs_is_reg = true;
+	if (!get_register(rhs).has_value()) {
+		rhs_is_reg = false;
+	}
+	
+	out.push_back("// Cast\n");
+
+	// mem -> mem is not allowed, so I have to make the lhs a register.
+	// This would also be a good time to cast the lhs to the appropriate size.
+	if (!lhs_is_reg && !rhs_is_reg) {
+		if (lhs_size == 4 && max_size == 8) { // int -> long
+			RegisterRef rax = get_register("rax");
+			if (rax->get().occupied) {
+				RegisterRef temp_reg = get_available_register();
+				temp_reg->get().occupied = true;
+				out.push_back("movq %rax, " + temp_reg->get().name_from_size(8) + '\n');
+			}
+			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
+			out.push_back("cltq\n");
+			
+			lhs = "%rax";
+		} else {
+			RegisterRef reg = get_available_register();
+			reg->get().occupied = true;
+			out.push_back(get_mov_instruction(lhs_size, max_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(max_size) + '\n');
+			lhs = reg->get().name_from_size(max_size);
+		}
+	}
+	
+	return { lhs, rhs };
 }
 
 namespace token_function {
@@ -607,20 +639,24 @@ namespace token_function {
 	}
 
 	void equals(TokIt tok_it) {
-		std::string rhs = *(tok_it+1);
-		int rhs_size = get_size_of_operand(rhs, get_size_of_operand(*(tok_it-1)));
+		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1));
+		
+		int dest_size = get_size_of_operand(lhs_rhs.second);
 
-		if (RegisterRef rhs_reg = get_register(*(tok_it+1)); rhs_reg.has_value()) {
-			rhs_reg->get().occupied = false;
-		} else { // "mov mem, mem" is not allowed!!
-			RegisterRef reg = get_available_register();
-			size_t type_vec_index = index_of(types::sizes, rhs_size);
-			out.push_back("mov" + types::suffixes[type_vec_index] + ' '  + set_operand_prefix(rhs) + ", " + reg->get().name_from_size(rhs_size) + '\n');
-			rhs = reg->get().name_from_size(rhs_size);
+		if (RegisterRef reg = get_register(lhs_rhs.first); reg.has_value()) {
+			reg->get().occupied = false;
+			lhs_rhs.first = reg->get().name_from_size(dest_size);
+		}
+		if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
 			reg->get().occupied = false;
 		}
-		
-		out.push_back(get_mov_instruction(rhs_size, get_size_of_operand(*(tok_it-1))) + ' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(*(tok_it-1)) + '\n');
+
+		std::string out_str = "";
+		out_str += get_mov_instruction(get_size_of_operand(lhs_rhs.first), get_size_of_operand(lhs_rhs.second)) + ' ';
+		out_str += set_operand_prefix(lhs_rhs.first) + ",";
+		out_str += set_operand_prefix(lhs_rhs.second) + '\n';
+
+		out.push_back(out_str);
 	}
 
 	void base_functions(TokIt tok_it) {

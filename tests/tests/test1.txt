@@ -11,10 +11,22 @@
 	l = i
 	i = l
 	
+	l = s
+	s = l
+
+	l = c
+	c = l
+	
+	
 	i = s
 	s = i
-	s = l
 	
-	c = l
 	i = c
-#>
+	c = i
+
+	
+	s = c
+	c = s
+
+	>e 0
+#> 0
