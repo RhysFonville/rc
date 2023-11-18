@@ -478,10 +478,15 @@ std::string get_mov_instruction(int lhs, int rhs) {
 		return "mov" + types::suffixes[index_of(types::sizes, rhs)];
 }
 
-std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs) {
+std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
 	std::swap(lhs, rhs);
 	
-	int lhs_size = get_size_of_operand(lhs);
+	int lhs_size;
+	if (default_size == -1) {
+		lhs_size = get_size_of_operand(lhs);
+	} else {
+		lhs_size = get_size_of_operand(lhs, default_size);
+	}
 	int rhs_size = get_size_of_operand(rhs, lhs_size);
 	int max_size = std::max(lhs_size, rhs_size);
 	
@@ -548,6 +553,7 @@ namespace token_function {
 			cmd = "sub";
 		}
 		if (cmd == "add" || cmd == "sub") {
+			/*
 			RegisterRef lhs = get_available_register();
 			lhs->get().occupied = true;
 			RegisterRef rhs = get_available_register();
@@ -570,9 +576,12 @@ namespace token_function {
 			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().name_from_size(arithmatic_size) + ", " + lhs->get().name_from_size(arithmatic_size) + '\n');
 		
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
-			
+
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
+			*/
+
+			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1));
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
