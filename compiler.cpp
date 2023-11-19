@@ -478,11 +478,17 @@ std::string get_mov_instruction(int lhs, int rhs) {
 		return "mov" + types::suffixes[index_of(types::sizes, rhs)];
 }
 
+std::string get_mov_instruction(std::string lhs, std::string rhs) {
+	int rhs_size = get_size_of_operand(rhs);
+	int lhs_size = get_size_of_operand(lhs, rhs_size);
+	return get_mov_instruction(lhs_size, rhs_size);
+}
+
 std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
-	std::swap(lhs, rhs);
-	
-	int lhs_size = get_size_of_operand(lhs);
-	int rhs_size = get_size_of_operand(rhs, lhs_size);
+	int rhs_size = get_size_of_operand(rhs);
+	std::cout << "rhs size:" << rhs_size << std::endl;
+	int lhs_size = get_size_of_operand(lhs, rhs_size);
+	std::cout << "lhs size:" << lhs_size << std::endl;
 	int max_size;
 	if (default_size == -1) {
 		max_size = std::max(lhs_size, rhs_size);
@@ -499,11 +505,14 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 		rhs_is_reg = false;
 	}
 	
+	bool lhs_is_number = is_number(lhs);
+	bool rhs_is_number = is_number(rhs);
+
 	out.push_back("// Cast\n");
 
 	// mem -> mem is not allowed, so I have to make the lhs a register.
 	// This would also be a good time to cast the lhs to the appropriate size.
-	if (!lhs_is_reg && !rhs_is_reg) {
+	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
 		if (lhs_size == 4 && max_size == 8) { // int -> long
 			RegisterRef rax = get_register("rax");
 			if (rax->get().occupied) {
@@ -523,6 +532,10 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 		}
 	}
 	
+	if (RegisterRef reg = get_register(lhs); reg.has_value()) {
+		reg->get().occupied = false;
+		lhs = reg->get().name_from_size(rhs_size);
+	}
 	return { lhs, rhs };
 }
 
@@ -547,7 +560,7 @@ namespace token_function {
 		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg->get().names.q));
 	}
 
-	void math(TokIt tok_it) {
+	void math(TokIt &tok_it) {
 		std::string cmd;
 		if (*tok_it == "*") {
 			cmd = "mul";
@@ -586,12 +599,17 @@ namespace token_function {
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
 			*/
-
-			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1), 4);
+			RegisterRef rhs = get_available_register(); // asm rhs (math output)
+			std::string rhs_name =  rhs->get().name_from_size(get_size_of_operand(*(tok_it-1)));
+			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + *(tok_it-1) + ", " + set_operand_prefix(rhs_name) + '\n');
+			
+			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), rhs_name, 4);
 			out.push_back(
 				cmd + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] + ' ' +
 				lhs_rhs.first + ", " + lhs_rhs.second + '\n'
-			); 
+			);
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
+			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" goes down to "[result]"
 
 			unoccupy_if_register(lhs_rhs.first);
 			unoccupy_if_register(lhs_rhs.second);
@@ -618,7 +636,7 @@ namespace token_function {
 			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().name_from_size(arithmatic_size) + '\n');
 
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
-			
+
 			lhs->get().occupied = true;
 			rhs->get().occupied = false;
 		}
@@ -661,24 +679,17 @@ namespace token_function {
 	}
 
 	void equals(TokIt tok_it) {
-		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), *(tok_it+1));
+		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), *(tok_it-1));
 		
-		int dest_size = get_size_of_operand(lhs_rhs.second);
-
-		if (RegisterRef reg = get_register(lhs_rhs.first); reg.has_value()) {
-			reg->get().occupied = false;
-			lhs_rhs.first = reg->get().name_from_size(dest_size);
-		}
-		if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
-			reg->get().occupied = false;
-		}
-
 		std::string out_str = "";
-		out_str += get_mov_instruction(get_size_of_operand(lhs_rhs.first), get_size_of_operand(lhs_rhs.second)) + ' ';
+		out_str += get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
 		out_str += set_operand_prefix(lhs_rhs.first) + ", ";
 		out_str += set_operand_prefix(lhs_rhs.second) + '\n';
 
 		out.push_back(out_str);
+		
+		unoccupy_if_register(lhs_rhs.first);
+		unoccupy_if_register(lhs_rhs.second);
 	}
 
 	void base_functions(TokIt tok_it) {
@@ -838,7 +849,9 @@ int begin_compile(std::vector<std::string> args) {
 		if (!l.empty()) {
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
-			
+		
+			std::cout << l << std::endl;
+
 			WHILE_US_FIND_TOKEN("//") {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {
