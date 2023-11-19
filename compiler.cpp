@@ -121,7 +121,7 @@ std::vector<int> variable_sizes = { };
 std::vector<int> variable_stack_locations = { };
 
 std::vector<Register> registers = {
-	Register("rbx","ebx","bx","ah","al"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
+	Register("rbx","ebx","bx","bh","bl"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
 	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
 	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
 };
@@ -486,9 +486,7 @@ std::string get_mov_instruction(std::string lhs, std::string rhs) {
 
 std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
 	int rhs_size = get_size_of_operand(rhs);
-	std::cout << "rhs size:" << rhs_size << std::endl;
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
-	std::cout << "lhs size:" << lhs_size << std::endl;
 	int max_size;
 	if (default_size == -1) {
 		max_size = std::max(lhs_size, rhs_size);
@@ -507,8 +505,6 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	
 	bool lhs_is_number = is_number(lhs);
 	bool rhs_is_number = is_number(rhs);
-
-	out.push_back("// Cast\n");
 
 	// mem -> mem is not allowed, so I have to make the lhs a register.
 	// This would also be a good time to cast the lhs to the appropriate size.
@@ -603,7 +599,7 @@ namespace token_function {
 			std::string rhs_name =  rhs->get().name_from_size(get_size_of_operand(*(tok_it-1)));
 			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + *(tok_it-1) + ", " + set_operand_prefix(rhs_name) + '\n');
 			
-			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it-1), rhs_name, 4);
+			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
 			out.push_back(
 				cmd + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] + ' ' +
 				lhs_rhs.first + ", " + lhs_rhs.second + '\n'
@@ -849,9 +845,7 @@ int begin_compile(std::vector<std::string> args) {
 		if (!l.empty()) {
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
-		
-			std::cout << l << std::endl;
-
+			
 			WHILE_US_FIND_TOKEN("//") {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {

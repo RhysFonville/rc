@@ -11,14 +11,10 @@ movq $323445, -8(%rbp)
 movl $45392, -12(%rbp)
 movw $1233, -14(%rbp)
 movb $34, -15(%rbp)
-// Cast
 movb $50, -15(%rbp)
-// Cast
 movw $54, -14(%rbp)
-movb -15(%rbp), %al
-// Cast
-addb -15(%rbp), %al
-// Cast
+movb -15(%rbp), %bl
+addb -14(%rbp), %bl
 movl %ebx, -12(%rbp)
 leaq -12(%rbp), %rbx
 movq $1, %rax
