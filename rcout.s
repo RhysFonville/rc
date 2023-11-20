@@ -7,20 +7,23 @@ main:
 pushq %rbp
 movq %rsp, %rbp
 subq $16, %rsp
-movq $323445, -8(%rbp)
-movl $45392, -12(%rbp)
-movw $1233, -14(%rbp)
-movb $34, -15(%rbp)
-movb $50, -15(%rbp)
-movw $54, -14(%rbp)
-movb -15(%rbp), %bl
-addb -14(%rbp), %bl
-movl %ebx, -12(%rbp)
-leaq -12(%rbp), %rbx
+movb $10, -1(%rbp)
+movl $52, -5(%rbp)
+movb 3, %bl
+movb 3, %bl
+addb -5(%rbp), %bl
+movsbl %bl, -9(%rbp)
+leaq -9(%rbp), %rbx
 movq $1, %rax
 movq $1, %rdi
 movq %rbx, %rsi
 movq $1, %rdx
+syscall
+leaq -1(%rbp), %rbx
+movq $1, %rax
+movq $1, %rdi
+movq %rbx, %rsi
+movq $10, %rdx
 syscall
 movq $60, %rax
 movq $0, %rdi

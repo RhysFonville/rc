@@ -1,16 +1,9 @@
-// TEST #1 - VARIABLES
-
 #main
-	lng l 323445
-	int i 45392
-	sht s 1233
-	ch  c 34
-	
-	c = 50
-	s = 54
-
-	i = c+s
+	ch nl 10
+	int a 52
+	int i 3 + a
 	>w 1 &i 1
-
+	
+	>w 1 &nl 10
 >e 0
 #> 0

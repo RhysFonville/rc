@@ -478,7 +478,7 @@ std::string get_mov_instruction(int lhs, int rhs) {
 		return "mov" + types::suffixes[index_of(types::sizes, rhs)];
 }
 
-std::string get_mov_instruction(std::string lhs, std::string rhs) {
+std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
 	return get_mov_instruction(lhs_size, rhs_size);
@@ -510,16 +510,15 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	// This would also be a good time to cast the lhs to the appropriate size.
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
 		if (lhs_size == 4 && max_size == 8) { // int -> long
-			RegisterRef rax = get_register("rax");
-			if (rax->get().occupied) {
-				RegisterRef temp_reg = get_available_register();
-				temp_reg->get().occupied = true;
-				out.push_back("movq %rax, " + temp_reg->get().name_from_size(8) + '\n');
-			}
 			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
 			
 			lhs = "%rax";
+		} else if (lhs_size == 1 && max_size == 4) { // byte -> int
+			RegisterRef reg = get_available_register();
+			out.push_back("movsbl " + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(4));
+			std::cout << "s";
+			lhs = reg->get().name_from_size(4);
 		} else {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
@@ -539,6 +538,24 @@ void unoccupy_if_register(const std::string &reg_name) {
 	if (RegisterRef reg = get_register(reg_name); reg.has_value()) {
 		reg->get().occupied = false;
 	}
+}
+
+bool is_variable(const std::string &str) {
+	// ex of variable: -4(%rbp)
+	size_t parenthesis = str.find('(');
+	if (parenthesis != -1) {
+		std::string num_before = str.substr(0, parenthesis);
+		if (is_number(num_before)) {
+			if (std::stoi(num_before) < 0) {
+				std::string reg = str.substr(parenthesis, str.size()-parenthesis);
+				if (reg == "%rbp") {
+					return true;	
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 namespace token_function {
@@ -568,47 +585,32 @@ namespace token_function {
 			cmd = "sub";
 		}
 		if (cmd == "add" || cmd == "sub") {
-			/*
-			RegisterRef lhs = get_available_register();
-			lhs->get().occupied = true;
-			RegisterRef rhs = get_available_register();
-			
-			int lhs_size = get_size_of_operand(*(tok_it-1)); 
-			int rhs_size = get_size_of_operand(*(tok_it+1));
-			int arithmatic_size = std::max({ lhs_size, rhs_size, 4 });
-
-			// Check again using a number default now that we know the arithmatic size
-			lhs_size = get_size_of_operand(*(tok_it-1), arithmatic_size); 
-			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
-			
-			std::string lhs_str = get_mov_instruction(arithmatic_size, lhs_size) + ' ';
-			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().name_from_size(lhs_size)  + '\n';
-			std::string rhs_str = get_mov_instruction(arithmatic_size, rhs_size) + ' ';
-			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().name_from_size(rhs_size) + '\n';
-			
-			out.push_back(lhs_str);
-			out.push_back(rhs_str);
-			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().name_from_size(arithmatic_size) + ", " + lhs->get().name_from_size(arithmatic_size) + '\n');
-		
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
-
-			lhs->get().occupied = true;
-			rhs->get().occupied = false;
-			*/
+			int rhs_size = get_size_of_operand(*(tok_it-1));
 			RegisterRef rhs = get_available_register(); // asm rhs (math output)
-			std::string rhs_name =  rhs->get().name_from_size(get_size_of_operand(*(tok_it-1)));
+			std::string rhs_name =  rhs->get().name_from_size(rhs_size);
+			
+			std::string lhs = *(tok_it-1); // asm lhs (math input)
+			RegisterRef register_ref;
+			if (!is_variable(lhs)) {
+				register_ref = get_available_register();
+				register_ref->get().occupied = true;
+				std::string reg = register_ref->get().name_from_size(rhs_size);
+				out.push_back(get_mov_instruction(rhs_size, rhs_size) + ' ' + lhs + ", " + reg + '\n');
+			}
+
 			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + *(tok_it-1) + ", " + set_operand_prefix(rhs_name) + '\n');
 			
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
 			out.push_back(
 				cmd + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] + ' ' +
-				lhs_rhs.first + ", " + lhs_rhs.second + '\n'
+				set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 			);
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
 			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" goes down to "[result]"
-
+			
 			unoccupy_if_register(lhs_rhs.first);
 			unoccupy_if_register(lhs_rhs.second);
+			if (register_ref.has_value()) register_ref->get().occupied = false;
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
