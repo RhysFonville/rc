@@ -9,10 +9,10 @@ movq %rsp, %rbp
 subq $16, %rsp
 movb $10, -1(%rbp)
 movl $52, -5(%rbp)
-movb 3, %bl
+movb $3, %bl
 movb 3, %bl
 addb -5(%rbp), %bl
-movsbl %bl, -9(%rbp)
+movl %ebx, -9(%rbp)
 leaq -9(%rbp), %rbx
 movq $1, %rax
 movq $1, %rdi

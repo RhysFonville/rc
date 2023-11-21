@@ -6,6 +6,7 @@
 #include <string>
 #include <climits>
 #include <optional>
+#include <ranges>
 #include "Token.h"
 
 #define WHILE_FIND_TOKEN(tok) \
@@ -445,6 +446,8 @@ int get_size_of_operand(const std::string &str, int number_default = -1) {
 		return get_size_of_number(str);
 	} else if (RegisterRef reg = get_register(str); reg.has_value()) {
 		return get_size_of_register(str);
+	} else if (auto it = std::ranges::find(variable_names, str); it != variable_names.end()) {
+		return variable_sizes[std::distance(variable_names.begin(), it)];	
 	} else {
 		return -1;
 	}
@@ -505,6 +508,8 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	
 	bool lhs_is_number = is_number(lhs);
 	bool rhs_is_number = is_number(rhs);
+	
+	std::cout << lhs_size << ' ' << max_size << std::endl;
 
 	// mem -> mem is not allowed, so I have to make the lhs a register.
 	// This would also be a good time to cast the lhs to the appropriate size.
@@ -595,7 +600,7 @@ namespace token_function {
 				register_ref = get_available_register();
 				register_ref->get().occupied = true;
 				std::string reg = register_ref->get().name_from_size(rhs_size);
-				out.push_back(get_mov_instruction(rhs_size, rhs_size) + ' ' + lhs + ", " + reg + '\n');
+				out.push_back(get_mov_instruction(rhs_size, rhs_size) + ' ' + set_operand_prefix(lhs) + ", " + reg + '\n');
 			}
 
 			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + *(tok_it-1) + ", " + set_operand_prefix(rhs_name) + '\n');
@@ -664,15 +669,13 @@ namespace token_function {
 			variable_stack_locations.push_back(INT_MAX);
 		} else {
 			current_stack_size += types::sizes[type_vec_index];
-		
-			//out.push_back("subq $" + std::to_string(types::sizes[type_vec_index]) + ", %rsp\n");
-			
-			std::string str = get_mov_instruction(get_size_of_operand(*(tok_it+2), types::sizes[type_vec_index]), types::sizes[type_vec_index]) + ' ';
-			str += set_operand_prefix(*(tok_it+2)) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
-			out.push_back(str);
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
-			variable_stack_locations.push_back(-current_stack_size);
+			variable_stack_locations.push_back(-current_stack_size); 
+			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+2), *(tok_it+1));
+			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
+			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
+			out.push_back(str);
 		}
 	}
 
