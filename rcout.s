@@ -10,7 +10,7 @@ subq $16, %rsp
 movb $10, -1(%rbp)
 movl $52, -5(%rbp)
 movb $3, %bl
-movb 3, %bl
+movb $3, %bl
 addb -5(%rbp), %bl
 movl %ebx, -9(%rbp)
 leaq -9(%rbp), %rbx

@@ -509,8 +509,6 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	bool lhs_is_number = is_number(lhs);
 	bool rhs_is_number = is_number(rhs);
 	
-	std::cout << lhs_size << ' ' << max_size << std::endl;
-
 	// mem -> mem is not allowed, so I have to make the lhs a register.
 	// This would also be a good time to cast the lhs to the appropriate size.
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
@@ -522,7 +520,6 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 		} else if (lhs_size == 1 && max_size == 4) { // byte -> int
 			RegisterRef reg = get_available_register();
 			out.push_back("movsbl " + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(4));
-			std::cout << "s";
 			lhs = reg->get().name_from_size(4);
 		} else {
 			RegisterRef reg = get_available_register();
@@ -603,7 +600,7 @@ namespace token_function {
 				out.push_back(get_mov_instruction(rhs_size, rhs_size) + ' ' + set_operand_prefix(lhs) + ", " + reg + '\n');
 			}
 
-			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + *(tok_it-1) + ", " + set_operand_prefix(rhs_name) + '\n');
+			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + set_operand_prefix(*(tok_it-1)) + ", " + set_operand_prefix(rhs_name) + '\n');
 			
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
 			out.push_back(
