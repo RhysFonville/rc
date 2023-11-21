@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
 		clog::out("+======================== TEST #" + std::to_string(i) + " ========================+");
 		
 		try {
-			begin_compile({ "rc", files[i] });
+			system((".././rc " + files[i]).c_str());
 		} catch (const std::exception &e) {
 			clog::error("Test #" + std::to_string(i) + " did not work. Message: " + e.what());
 		}

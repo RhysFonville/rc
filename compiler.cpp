@@ -693,9 +693,12 @@ namespace token_function {
 	void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
 			out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+2)) + ", %rdi" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+3)) + ", %rsi" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+4)) + ", %rdx" + '\n');
+			int size1 = get_size_of_operand(*(tok_it+2));
+			out.push_back(get_mov_instruction(size1, size1) + ' ' + set_operand_prefix(*(tok_it+2)) + ", " + get_register("rdi")->get().name_from_size(size1) + '\n');
+			int size2 = get_size_of_operand(*(tok_it+3));
+			out.push_back(get_mov_instruction(size2, size2) + ' ' + set_operand_prefix(*(tok_it+3)) + ", " + get_register("rsi")->get().name_from_size(size2) + '\n');
+			int size3 = get_size_of_operand(*(tok_it+4));
+			out.push_back(get_mov_instruction(size3, size3) + ' ' + set_operand_prefix(*(tok_it+4)) + ", " + get_register("rdx")->get().name_from_size(size3) + '\n');
 			out.push_back("syscall\n");
 			
 			get_register("rax")->get().occupied = false;
@@ -704,9 +707,12 @@ namespace token_function {
 			get_register("rdx")->get().occupied = false;
 		} else if (*(tok_it+1) == "r") { // READ
 			out.push_back("movq " + SYS_READ + ", %rax" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+2)) + ", %rdi" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+3)) + ", %rsi" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+4)) + ", %rdx" + '\n');
+			int size1 = get_size_of_operand(*(tok_it+2));
+			out.push_back(get_mov_instruction(size1, size1) + ' ' + set_operand_prefix(*(tok_it+2)) + ", " + get_register("rdi")->get().name_from_size(size1) + '\n');
+			int size2 = get_size_of_operand(*(tok_it+3));
+			out.push_back(get_mov_instruction(size2, size2) + ' ' + set_operand_prefix(*(tok_it+3)) + ", " + get_register("rsi")->get().name_from_size(size2) + '\n');
+			int size3 = get_size_of_operand(*(tok_it+4));
+			out.push_back(get_mov_instruction(size3, size3) + ' ' + set_operand_prefix(*(tok_it+4)) + ", " + get_register("rdx")->get().name_from_size(size3) + '\n');
 			out.push_back("syscall\n");
 
 			get_register("rax")->get().occupied = false;
@@ -715,7 +721,8 @@ namespace token_function {
 			get_register("rdx")->get().occupied = false;
 		} else if (*(tok_it+1) == "e") { // EXIT
 			out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
-			out.push_back("movq " + set_operand_prefix(*(tok_it+2)) + ", %rdi" + '\n');
+			int size = get_size_of_operand(*(tok_it+2));
+			out.push_back(get_mov_instruction(size, size) + ' ' + set_operand_prefix(*(tok_it+2)) + ", " + get_register("rdx")->get().name_from_size(size) + '\n');
 			out.push_back("syscall\n");
 
 			get_register("rax")->get().occupied = false;
