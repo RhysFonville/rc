@@ -920,8 +920,7 @@ int begin_compile(std::vector<std::string> args) {
 	read.close();
 	write.close();
 
-	system(((std::string)"as rcout.s -o rcout.o && ld rcout.o -e main && ./a.out").c_str());
-	system(((std::string)"rm rcout.o").c_str());
+	system(((std::string)"make run_asm").c_str());
 
 	return 0;
 }
