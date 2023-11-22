@@ -16,4 +16,7 @@ run_asm:
 test:
 	${CC} -g -std=c++20 tests/test_compiler.cpp -o tests/testrc
 	tests/testrc
-	
+
+bear:
+	touch compiler.cpp
+	bear -- make
