@@ -1,9 +1,17 @@
+// TEST #2 - MATH
+
 #main
 	ch nl 10
-	int a 52
-	int i 3 + a
-	>w 1 &i 1
+
+	int i 5
+	ch c 2
+	lng l 48
+	sht s 8
 	
-	>w 1 &nl 10
->e 0
+	i = c+4
+	i = i+l
+	>w 1 &i c-1
+	>w 1 &nl 1
+	
+	>e 0
 #> 0

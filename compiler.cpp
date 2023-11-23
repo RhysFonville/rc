@@ -516,10 +516,10 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
 			
-			lhs = "%rax";
+			lhs = "%rax"; // Using 'rax' is probably a problem. Do I care right now though? No.
 		} else if (lhs_size == 1 && max_size == 4) { // byte -> int
 			RegisterRef reg = get_available_register();
-			out.push_back("movsbl " + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(4));
+			out.push_back("movsbl " + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(4) + '\n');
 			lhs = reg->get().name_from_size(4);
 		} else {
 			RegisterRef reg = get_available_register();
@@ -530,7 +530,7 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	}
 	
 	if (RegisterRef reg = get_register(lhs); reg.has_value()) {
-		reg->get().occupied = false;
+		reg->get().occupied = true;
 		lhs = reg->get().name_from_size(rhs_size);
 	}
 	return { lhs, rhs };
@@ -608,11 +608,9 @@ namespace token_function {
 				set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 			);
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
-			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" goes down to "[result]"
+			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
 			
 			unoccupy_if_register(lhs_rhs.first);
-			unoccupy_if_register(lhs_rhs.second);
-			if (register_ref.has_value()) register_ref->get().occupied = false;
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
@@ -676,8 +674,8 @@ namespace token_function {
 		}
 	}
 
-	void equals(TokIt tok_it) {
-		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), *(tok_it-1));
+	void equals(const std::string &lhs, const std::string &rhs) {
+		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
 		
 		std::string out_str = "";
 		out_str += get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
@@ -689,44 +687,35 @@ namespace token_function {
 		unoccupy_if_register(lhs_rhs.first);
 		unoccupy_if_register(lhs_rhs.second);
 	}
+	
+	void equals(TokIt tok_it) {
+		equals(*(tok_it+1), *(tok_it-1));
+	}
 
 	void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
 			out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
-			int size1 = get_size_of_operand(*(tok_it+2));
-			out.push_back(get_mov_instruction(size1, size1) + ' ' + set_operand_prefix(*(tok_it+2)) + ", " + get_register("rdi")->get().name_from_size(size1) + '\n');
-			int size2 = get_size_of_operand(*(tok_it+3));
-			out.push_back(get_mov_instruction(size2, size2) + ' ' + set_operand_prefix(*(tok_it+3)) + ", " + get_register("rsi")->get().name_from_size(size2) + '\n');
-			int size3 = get_size_of_operand(*(tok_it+4));
-			out.push_back(get_mov_instruction(size3, size3) + ' ' + set_operand_prefix(*(tok_it+4)) + ", " + get_register("rdx")->get().name_from_size(size3) + '\n');
+			equals(*(tok_it+2), "%rdi");
+			equals(*(tok_it+3), "%rsi");
+			equals(*(tok_it+4), "%rdx");
 			out.push_back("syscall\n");
-			
-			get_register("rax")->get().occupied = false;
-			get_register("rdi")->get().occupied = false;
-			get_register("rsi")->get().occupied = false;
-			get_register("rdx")->get().occupied = false;
+			unoccupy_if_register(*(tok_it+2));
+			unoccupy_if_register(*(tok_it+3));
+			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "r") { // READ
 			out.push_back("movq " + SYS_READ + ", %rax" + '\n');
-			int size1 = get_size_of_operand(*(tok_it+2));
-			out.push_back(get_mov_instruction(size1, size1) + ' ' + set_operand_prefix(*(tok_it+2)) + ", " + get_register("rdi")->get().name_from_size(size1) + '\n');
-			int size2 = get_size_of_operand(*(tok_it+3));
-			out.push_back(get_mov_instruction(size2, size2) + ' ' + set_operand_prefix(*(tok_it+3)) + ", " + get_register("rsi")->get().name_from_size(size2) + '\n');
-			int size3 = get_size_of_operand(*(tok_it+4));
-			out.push_back(get_mov_instruction(size3, size3) + ' ' + set_operand_prefix(*(tok_it+4)) + ", " + get_register("rdx")->get().name_from_size(size3) + '\n');
+			equals(*(tok_it+2), "%rdi");
+			equals(*(tok_it+3), "%rsi");
+			equals(*(tok_it+4), "%rdx");
 			out.push_back("syscall\n");
-
-			get_register("rax")->get().occupied = false;
-			get_register("rdi")->get().occupied = false;
-			get_register("rsi")->get().occupied = false;
-			get_register("rdx")->get().occupied = false;
+			unoccupy_if_register(*(tok_it+2));
+			unoccupy_if_register(*(tok_it+3));
+			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "e") { // EXIT
 			out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
-			int size = get_size_of_operand(*(tok_it+2));
-			out.push_back(get_mov_instruction(size, size) + ' ' + set_operand_prefix(*(tok_it+2)) + ", " + get_register("rdx")->get().name_from_size(size) + '\n');
+			equals(*(tok_it+2), "%rdi");
 			out.push_back("syscall\n");
-
-			get_register("rax")->get().occupied = false;
-			get_register("rdi")->get().occupied = false;
+			unoccupy_if_register(*(tok_it+2));
 		}
 	}
 
