@@ -1,5 +1,5 @@
 asm-temp
-*rcout.s
-code.txt
+*.s
 *a.out
 *.o
+*.txt
