@@ -2,7 +2,7 @@
 ## A custom compiler for a language that prioritizes typing as little as possible.
 
 
-### To install/compile/run:
+<h3>To install/compile/run:</h3>
 
 1. Clone the repository into the directory of your choice (For example, ~/Documents/)
 ```
@@ -18,9 +18,9 @@ I recommend keeping this directory in the directory that you will be working and
 ```
 
 
-### Syntax of the language
+<h3>Syntax of the language</h3>
 
-#### Variables
+<h4>Variables</h4>
 
 The types include:
     - lng (long)
@@ -39,7 +39,7 @@ This declares an integer named `i` with an initial value of 35. You are not requ
 
 Note: Strings can only be declared globally.
 
-#### Functions
+<h4>Functions</h4>
 
 A function declaration looks like this:
 ```
@@ -70,7 +70,7 @@ Calling a function is simple. You simply just write the function's name.
 
 As you can see, you must have a main function.
 
-#### Conditionals
+<h4>Conditionals</h4>
 
 Conditionals can only be used when/by calling functions. To best explain what this means, I will show an example.
 
@@ -80,9 +80,9 @@ my_example_function ? a == b
 ```
 In this example, my_example will only be called if a is equal to b.
 
-The conditional expressions are jsut the same as *most* other languages (ahem, lua).
+The conditional expressions are just the same as *most* other languages (ahem, lua. Like why ~=? It doesn't make sense).
 
-#### Base Functions
+<h4>Base Functions</h4>
 
 Base functions (or syscalls) can be easily identified in rc since it starts with a `>`. For example, the performing the `write` syscall looks like this:
 ```
@@ -91,6 +91,6 @@ Base functions (or syscalls) can be easily identified in rc since it starts with
 `w` stands for write, `1` is to specify stdout, str is the string variable assumed to be defined earlier in the program, and 10 is the number of characters to write.
 
 
-### Tests
+<h3>Tests</h3>
 
-The tests folder includes a test_compiler executable and a tests folder that includes the programs to compile and run. Adding a new test program and running test_compiler should run your tests.
+The tests folder includes a `testrc` executable and a tests folder that includes the programs to compile and run. Adding a new test program and running `testrc` should run your tests.

@@ -6,7 +6,7 @@
 	int i 5
 	ch c 2
 	lng l 48
-	sht s i+c+1
+	sht s 8
 	
 	i = c+4
 	i = i+l

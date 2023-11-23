@@ -1,6 +1,7 @@
 #include <string>
 #include <filesystem>
-#include "../compiler.cpp"
+#include <iostream>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -15,15 +16,14 @@ std::vector<std::string> get_files(const std::string &dir) {
 int main(int argc, char* argv[]) {
 	std::vector<std::string> files = get_files("tests");
 	for (int i = 0; i < files.size(); i++) {
-		clog::out("+======================== TEST #" + std::to_string(i) + " ========================+");
-		
+		std::cout << "+======================== TEST #" + std::to_string(i) + " ========================+" << std::endl;
 		try {
-			begin_compile({ "rc", files[i] });
+			system(("./rc " + files[i]).c_str());
 		} catch (const std::exception &e) {
-			clog::error("Test #" + std::to_string(i) + " did not work. Message: " + e.what());
+			std::cout << "ERROR: Test #" << std::to_string(i) << " did not work. Message: " << e.what() << std::endl;
 		}
 
-		clog::out("+=========================================================+");
+		std::cout << "+=========================================================+" << std::endl;
 	}
 }
 
