@@ -800,6 +800,11 @@ namespace token_function {
 		out.push_back(".IF" + std::to_string(if_index) + ":\n");
 		if_index++;
 	}
+	void include(TokIt tok_it) {
+		if (*(tok_it+1) == "inc") {
+			out.push_back("%include \"" + *(tok_it+2) + "\"\n");
+		}
+	}
 }
 
 int begin_compile(std::vector<std::string> args) {
@@ -891,6 +896,9 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("%") {
+				token_function::include(tok_it);
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();
