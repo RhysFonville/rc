@@ -800,9 +800,17 @@ namespace token_function {
 		out.push_back(".IF" + std::to_string(if_index) + ":\n");
 		if_index++;
 	}
-	void include(TokIt tok_it) {
+	void macro(TokIt tok_it, std::vector<std::string> &lines) {
 		if (*(tok_it+1) == "inc") {
-			out.push_back("%include \"" + *(tok_it+2) + "\"\n");
+			std::ifstream in(*(tok_it+2));
+			
+			std::vector<std::string> inc_lines = { };
+			std::string l;
+			while (std::getline(in, l)) {
+				inc_lines.push_back(l);
+			}
+
+			lines.insert(lines.begin()+line_number+1, inc_lines.begin(), inc_lines.end());
 		}
 	}
 }
@@ -840,9 +848,16 @@ int begin_compile(std::vector<std::string> args) {
 	registers.push_back(Register());
 	
 	TokIt tok_it;
+	
+	std::vector<std::string> lines = { };
+	{
+		std::string l;	
+		while (std::getline(read, l)) {
+			lines.push_back(l);
+		}
+	}
 
-	std::string l;
-	while (std::getline(read, l)) {
+	for (std::string l : lines) {
 		line_number++;
 		l = trim(l);
 		if (!l.empty()) {
@@ -898,7 +913,7 @@ int begin_compile(std::vector<std::string> args) {
 				token_function::base_functions(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("%") {
-				token_function::include(tok_it);
+				token_function::macro(tok_it, lines);
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();
