@@ -35,15 +35,28 @@
 	while (true) { \
 		tok_it = remove_constness(_ltoks, find_first_tok(_ltoks, toks, tok_it)); \
 		if (tok_it != _ltoks.end()) { \
-			if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
+			if (print_line_in_asm) { \
+				std::string str = "// "; \
+				for (const std::string &tok : toks) { \
+					str += tok + " | "; \
+				} \
+				str += "on line " + std::to_string(line_number); \
+				out.push_back(str + '\n'); \
+			}
 
 #define WHILE_US_FIND_TOKENS(toks) \
 	tok_it = _us_ltoks.begin(); \
 	while (true) { \
 		tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
 		if (tok_it != _us_ltoks.end()) { \
-			if (print_line_in_asm) out.push_back("// Multiple token choices on line " + std::to_string(line_number) + '\n');
-
+			if (print_line_in_asm) { \
+				std::string str = "// "; \
+				for (const std::string &tok : toks) { \
+					str += tok + " | "; \
+				} \
+				str += "on line " + std::to_string(line_number); \
+				out.push_back(str + '\n'); \
+			}
 
 using TokIt = std::vector<std::string>::iterator;
 
@@ -184,37 +197,6 @@ std::string trim(std::string s, const char* t = ws) {
 		return "";
 }
 
-// bool string_is_wrapped(std::string str, size_t substr_begin, size_t substr_end, char c) {
-// 	if (str.size() > 1) {
-// 		if (substr_begin != 0) {
-// 			if (substr_end != str.size()-1) {
-// 				if (str[substr_begin-1] == c && str[substr_end+1] == c) {
-// 					return true;
-// 				} else {
-// 					return false;
-// 				}
-// 			} else {
-// 				if (str[substr_begin-1] == c) {
-// 					return true;
-// 				}
-// 			}
-// 		} else {
-// 			if (substr_end != str.size()-1) {
-// 				return false;
-// 			} else {
-// 				if (str[substr_end+1] == c) {
-// 					return true;
-// 				} else {
-// 					return false;
-// 				}
-// 			}
-// 		}
-// 	} else {
-// 		return false;
-// 	}
-// 	return false;
-// }
-
 std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 	std::vector<std::string> ret;
 	std::vector<bool> ret_is_token;
@@ -266,6 +248,9 @@ std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 				for (auto cit = find_quote; cit != find_end_quote+1; ++cit) {
 					str += *cit;
 				}
+				str.erase(0, 1);
+				str.erase(str.size() - 1);
+
 				ret.erase(find_quote, find_end_quote+1);
 				ret.insert(find_quote, str);
 				
@@ -809,7 +794,8 @@ namespace token_function {
 			while (std::getline(in, l)) {
 				inc_lines.push_back(l);
 			}
-
+			
+			std::cout << *(tok_it+2) << std::endl;
 			lines.insert(lines.begin()+line_number+1, inc_lines.begin(), inc_lines.end());
 		}
 	}
