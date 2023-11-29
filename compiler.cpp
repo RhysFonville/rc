@@ -386,6 +386,24 @@ bool is_number(const std::string &s) {
     return !s.empty() && it == s.end();
 }
 
+bool is_variable(const std::string &str) {
+	// ex of variable: -4(%rbp)
+	size_t parenthesis = str.find('(');
+	if (parenthesis != -1) {
+		std::string num_before = str.substr(0, parenthesis);
+		if (is_number(num_before)) {
+			if (std::stoi(num_before) < 0) {
+				std::string reg = str.substr(parenthesis, str.size()-parenthesis);
+				if (reg == "(%rbp)") {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 std::string set_operand_prefix(std::string str) {
 	if (!get_register(str).has_value() && str.back() != ')') {
 		str = '$' + str;
@@ -478,7 +496,7 @@ void unoccupy_if_register(const std::string &reg_name) {
 	}
 }
 
-std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
+std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1, bool change_reg_size = true) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
 	int max_size;
@@ -521,29 +539,14 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 		}
 	}
 	
-	if (RegisterRef reg = get_register(lhs); reg.has_value()) {
-		reg->get().occupied = true;
-		lhs = reg->get().name_from_size(rhs_size);
-	}
-	return { lhs, rhs };
-}
-
-bool is_variable(const std::string &str) {
-	// ex of variable: -4(%rbp)
-	size_t parenthesis = str.find('(');
-	if (parenthesis != -1) {
-		std::string num_before = str.substr(0, parenthesis);
-		if (is_number(num_before)) {
-			if (std::stoi(num_before) < 0) {
-				std::string reg = str.substr(parenthesis, str.size()-parenthesis);
-				if (reg == "(%rbp)") {
-					return true;
-				}
-			}
+	if (change_reg_size) {
+		if (RegisterRef reg = get_register(lhs); reg.has_value()) {
+			reg->get().occupied = true;
+			lhs = reg->get().name_from_size(rhs_size);
 		}
 	}
 
-	return false;
+	return { lhs, rhs };
 }
 
 namespace token_function {
@@ -578,11 +581,12 @@ namespace token_function {
 			rhs->get().occupied = true;
 			std::string rhs_name =  rhs->get().name_from_size(rhs_size);
 			
-			/* I don't remember why I wrote this. That's how you know my code is well documented and easy to understand. I wrote this last week and already forgot!!
-			std::string lhs = *(tok_it-1); // asm lhs (math input)
+			// I don't remember why I wrote this. That's how you know my code
+			// is well documented and easy to understand. I wrote this last week and already forgot!!
+			
+			/*std::string lhs = *(tok_it-1); // asm lhs (math input)
 			RegisterRef register_ref;
 			if (!is_variable(lhs)) {
-				out.push_back("// this\n");
 				register_ref = get_available_register();
 				register_ref->get().occupied = true;
 				std::string reg = register_ref->get().name_from_size(rhs_size);
@@ -602,6 +606,9 @@ namespace token_function {
 			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
 			
 			rhs->get().occupied = false;
+			if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
+				reg->get().occupied = true;
+			}
 			unoccupy_if_register(lhs_rhs.first);
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
@@ -668,8 +675,8 @@ namespace token_function {
 		}
 	}
 
-	void equals(const std::string &lhs, const std::string &rhs) {
-		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
+	void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
+		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs, get_size_of_operand(rhs), change_reg_size);
 		
 		std::string out_str = "";
 		out_str += get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
@@ -683,7 +690,7 @@ namespace token_function {
 	}
 	
 	void equals(TokIt tok_it) {
-		equals(*(tok_it+1), *(tok_it-1));
+		equals(*(tok_it+1), *(tok_it-1), true);
 	}
 
 	void base_functions(TokIt tok_it) {
