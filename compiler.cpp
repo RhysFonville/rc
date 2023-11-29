@@ -382,7 +382,7 @@ std::string get_string_literal(const std::vector<std::string> &toks, TokIt index
 
 bool is_number(const std::string &s) {
     std::string::const_iterator it = s.begin();
-    while (it != s.end() && std::isdigit(*it)) ++it;
+    while (it != s.end() && (std::isdigit(*it) || *it == '-')) ++it;
     return !s.empty() && it == s.end();
 }
 
@@ -472,6 +472,12 @@ std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) 
 	return get_mov_instruction(lhs_size, rhs_size);
 }
 
+void unoccupy_if_register(const std::string &reg_name) {
+	if (RegisterRef reg = get_register(reg_name); reg.has_value()) {
+		reg->get().occupied = false;
+	}
+}
+
 std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
@@ -497,6 +503,7 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	// mem -> mem is not allowed, so I have to make the lhs a register.
 	// This would also be a good time to cast the lhs to the appropriate size.
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
+		unoccupy_if_register(lhs);
 		if (lhs_size == 4 && max_size == 8) { // int -> long
 			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
@@ -521,12 +528,6 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	return { lhs, rhs };
 }
 
-void unoccupy_if_register(const std::string &reg_name) {
-	if (RegisterRef reg = get_register(reg_name); reg.has_value()) {
-		reg->get().occupied = false;
-	}
-}
-
 bool is_variable(const std::string &str) {
 	// ex of variable: -4(%rbp)
 	size_t parenthesis = str.find('(');
@@ -535,8 +536,8 @@ bool is_variable(const std::string &str) {
 		if (is_number(num_before)) {
 			if (std::stoi(num_before) < 0) {
 				std::string reg = str.substr(parenthesis, str.size()-parenthesis);
-				if (reg == "%rbp") {
-					return true;	
+				if (reg == "(%rbp)") {
+					return true;
 				}
 			}
 		}
@@ -574,17 +575,22 @@ namespace token_function {
 		if (cmd == "add" || cmd == "sub") {
 			int rhs_size = get_size_of_operand(*(tok_it-1));
 			RegisterRef rhs = get_available_register(); // asm rhs (math output)
+			rhs->get().occupied = true;
 			std::string rhs_name =  rhs->get().name_from_size(rhs_size);
 			
+			/* I don't remember why I wrote this. That's how you know my code is well documented and easy to understand. I wrote this last week and already forgot!!
 			std::string lhs = *(tok_it-1); // asm lhs (math input)
 			RegisterRef register_ref;
 			if (!is_variable(lhs)) {
+				out.push_back("// this\n");
 				register_ref = get_available_register();
 				register_ref->get().occupied = true;
 				std::string reg = register_ref->get().name_from_size(rhs_size);
 				out.push_back(get_mov_instruction(rhs_size, rhs_size) + ' ' + set_operand_prefix(lhs) + ", " + reg + '\n');
 			}
+			*/
 
+			// 'rhs' will store result.
 			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + set_operand_prefix(*(tok_it-1)) + ", " + set_operand_prefix(rhs_name) + '\n');
 			
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
@@ -595,6 +601,7 @@ namespace token_function {
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
 			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
 			
+			rhs->get().occupied = false;
 			unoccupy_if_register(lhs_rhs.first);
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
@@ -656,6 +663,8 @@ namespace token_function {
 			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
 			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
 			out.push_back(str);
+			unoccupy_if_register(lhs_rhs.first);
+			unoccupy_if_register(lhs_rhs.second);
 		}
 	}
 
@@ -903,6 +912,10 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 
 			disallowed_toks.clear();
+
+			for (Register &reg : registers) {
+				reg.occupied = false;
+			}
 		}
 	}
 
