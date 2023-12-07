@@ -14,7 +14,7 @@ I recommend keeping this directory in the directory that you will be working and
 
 2. Compile and run your code 
 ```
-./rc/rc mycode.txt
+rc/rc mycode.txt
 ```
 
 
