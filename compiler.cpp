@@ -818,22 +818,24 @@ namespace token_function {
 }
 
 int begin_compile(std::vector<std::string> args) {
+	std::string output_dir = "./";
+	bool print_line_in_asm = false;
 	if (args.size() < 2) {
 		clog::error("Must input file to compile.", 0);
 		return 0;
-	}
-
-	bool print_line_in_asm = false;
-	if (args.size() == 3) {
+	} else if (args.size() == 3) {
 		if (args[2] == "true") {
 			print_line_in_asm = true;
 		}
+	} else if (auto it = std::ranges::find(args, "-od"); it != args.end()) {
+		output_dir = *(it+1);
+		if ((it+1)->back() != '/') output_dir += '/';
 	}
-	
+
 	std::ifstream read;
 	read.open(args[1], std::ifstream::in);
 	std::ofstream write;
-	write.open("rcout.s", std::ofstream::out | std::ios::trunc);
+	write.open(output_dir + "rcout.s", std::ofstream::out | std::ios::trunc);
 	
 	std::vector<std::string> disallowed_toks = { };
 
@@ -938,7 +940,7 @@ int begin_compile(std::vector<std::string> args) {
 	read.close();
 	write.close();
 
-	system(((std::string)"make run_asm").c_str());
+	system(((std::string)"as " + output_dir + "rcout.s -o " + output_dir + "rcout.o && ld " + output_dir + "rcout.o -e main -o " + output_dir + "a.out && " + output_dir + "a.out").c_str());
 
 	return 0;
 }

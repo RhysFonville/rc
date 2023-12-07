@@ -14,8 +14,9 @@ run_asm:
 	as rcout.s -o rcout.o && ld rcout.o -e main && ./a.out
 
 test:
-	${CC} -g -std=c++20 tests/test_compiler.cpp -o tests/testrc
-	tests/testrc
+	cd tests && \
+	${CC} -g -std=c++20 test_compiler.cpp -o testrc && \
+	./testrc
 
 bear:
 	touch compiler.cpp

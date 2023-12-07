@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -18,7 +19,7 @@ int main(int argc, char* argv[]) {
 	for (int i = 0; i < files.size(); i++) {
 		std::cout << "+======================== TEST #" + std::to_string(i) + " ========================+" << std::endl;
 		try {
-			system(("./rc " + files[i]).c_str());
+			system(("../rc " + files[i]+"/main.txt -od tests/test"+std::to_string(i)).c_str());
 		} catch (const std::exception &e) {
 			std::cout << "ERROR: Test #" << std::to_string(i) << " did not work. Message: " << e.what() << std::endl;
 		}
