@@ -17,7 +17,7 @@ std::vector<std::string> get_files(const std::string &dir) {
 int main(int argc, char* argv[]) {
 	std::vector<std::string> files = get_files("tests");
 	for (int i = 0; i < files.size(); i++) {
-		std::cout << "+======================== TEST #" + std::to_string(i) + " ========================+" << std::endl;
+		std::cout << "+======================== " + files[i] + " ========================+" << std::endl;
 		try {
 			system(("../rc " + files[i]+"/main.txt -od tests/test"+std::to_string(i)).c_str());
 		} catch (const std::exception &e) {
