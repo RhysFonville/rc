@@ -664,21 +664,17 @@ namespace token_function {
 		size_t type_vec_index = index_of(types::types, *tok_it);
 		
 		if (current_function.empty()) {
-			out.push_back(".globl " + *(tok_it+1) + '\n');
-			out.push_back(".align " + std::to_string(types::sizes[type_vec_index]) + '\n'); // Align the same size as type
-			out.push_back(".type " + *(tok_it+1) + ", @object\n");
-			out.push_back(*(tok_it+1) + ":\n");
-			
-			std::string def_type = types::asm_types[type_vec_index];
-			def_type += ' ';
-
-			if (tok_it+2 == out.end() || (tok_it+2)->empty()) {
-				def_type += '0';
-			} else {
-				def_type += combine_toks(tok_it+2, _us_ltoks.end());
+			if (std::ranges::find(out, ".bss\n") == out.end()) {
+				out.push_back(".bss\n");
 			}
 
-			out.push_back(def_type+'\n');
+			out.push_back(".globl " + *(tok_it+1) + '\n');
+			out.push_back(".align 8\n");
+			out.push_back(".type " + *(tok_it+1) + ", @object\n");
+			out.push_back(".size " + *(tok_it+1) + ", 8\n");
+			out.push_back(*(tok_it+1) + ":\n");
+			out.push_back(".zero 8\n");
+
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(INT_MAX);
@@ -742,6 +738,10 @@ namespace token_function {
 	}
 
 	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
+		if (std::ranges::find(out, ".text\n") == out.end()) {
+			out.push_back(".text\n");
+		}
+		
 		std::string func_name = *(tok_it+1);
 		out.push_back(".globl " + func_name + '\n');
 		out.push_back(".type " + func_name + ", @function\n");
@@ -866,10 +866,6 @@ int begin_compile(std::vector<std::string> args) {
 	
 	int if_index = 0;
 
-	// --------- MAIN ---------
-	out.push_back(".text\n");
-	// ------------------------
-	
 	registers.push_back(Register());
 	
 	TokIt tok_it;
@@ -918,10 +914,11 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(functions) {
 				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
-					if (*(tok_it-1) != "#") {
-						token_function::function_call(tok_it);
+					if (*(tok_it-1) == "#") {
+						break;
 					}
 				}
+				token_function::function_call(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
 				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
@@ -954,10 +951,7 @@ int begin_compile(std::vector<std::string> args) {
 		}
 	}
 
-	// --------- STICK TO TOP OF FILE ---------
-	out.insert(out.begin(), ".data\n");
 	out.insert(out.begin(), ".file \"" + std::string(args[1]) + "\"\n");
-	// ----------------------------------------
 
 	for (const std::string &str : out) {
 		write << str;
