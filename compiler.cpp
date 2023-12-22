@@ -326,7 +326,7 @@ std::vector<std::string> replace_tok(std::vector<std::string> toks, size_t i, co
 }
 
 std::vector<std::string> replace_tok(const std::vector<std::string> &toks, std::vector<std::string>::const_iterator it, const std::string &str) {
-	return replace_tok(std::vector<std::string>(toks), from_it(toks, it), str);
+	return replace_tok(toks, from_it(toks, it), str);
 }
 
 void commit(const std::vector<std::string> &new_vec) {
@@ -404,6 +404,10 @@ bool is_variable(const std::string &str) {
 	return false;
 }
 
+bool is_pointer(const std::string &str) {
+	return str.find("(%rip)") != std::string::npos;
+}
+
 std::string set_operand_prefix(std::string str) {
 	if (!get_register(str).has_value() && str.back() != ')') {
 		str = '$' + str;
@@ -441,8 +445,13 @@ int get_size_of_number(const std::string &str) {
 	return 0;
 }
 
-int get_size_of_operand(const std::string &str, int number_default = -1) {
-	if (str.find("%rbp") != std::string::npos) {
+int get_size_of_operand(std::string str, int number_default = -1) {
+	if (str.front() == '(' && str.back() == ')') {
+		str.erase(str.begin());
+		str.pop_back();
+	}
+
+	if (is_variable(str)) {
 		return get_size_of_asm_stack_variable(str);
 	} else if (is_number(str)) {
 		if (number_default != -1) return number_default;
@@ -487,7 +496,7 @@ std::string get_mov_instruction(int lhs, int rhs) {
 std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
-	return get_mov_instruction(lhs_size, rhs_size);
+	return get_mov_instruction((is_pointer(lhs) ? rhs_size : lhs_size), rhs_size);
 }
 
 void unoccupy_if_register(const std::string &reg_name) {
@@ -522,7 +531,14 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	// This would also be a good time to cast the lhs to the appropriate size.
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
 		unoccupy_if_register(lhs);
-		if (lhs_size == 4 && max_size == 8) { // int -> long
+		if (is_pointer(lhs) && is_pointer(rhs)) {
+			RegisterRef reg = get_available_register();
+			reg->get().occupied = true;
+			out.push_back("movq " + lhs + ", " + reg->get().name_from_size(8) + '\n');
+			lhs = reg->get().name_from_size(8);
+		} else if (is_pointer(lhs) && !is_pointer(rhs)) {
+			
+		} else if (lhs_size == 4 && max_size == 8) { // int -> long
 			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
 			
@@ -550,18 +566,23 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 }
 
 namespace token_function {
-	void dereference(TokIt tok_it) {
+	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
-		tok_it->insert(tok_it->begin(), '(');
-		tok_it->insert(tok_it->end(), ')');
 		commit(_us_ltoks);
+		if (is_pointer(*tok_it)) {
+			RegisterRef reg = get_available_register();
+			reg->get().occupied = true;
+			out.push_back("movq " + *(tok_it) + ", " + reg->get().name_from_size(8) + '\n');
+			commit(replace_tok(_us_ltoks, tok_it, reg->get().name_from_size(8)));
+		}
+		commit(replace_tok(_us_ltoks, tok_it, '(' + *tok_it + ')'));
 	}
 
 	void address_of(TokIt tok_it) {
 		RegisterRef reg = get_available_register();
 		out.push_back("leaq " + *(tok_it+1) + ", " + reg->get().names.q + '\n');
 		
-		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg->get().names.q));
+		commit(replace_tok(_us_ltoks, tok_it, reg->get().names.q));
 	}
 
 	void math(TokIt &tok_it) {
@@ -643,10 +664,10 @@ namespace token_function {
 		size_t type_vec_index = index_of(types::types, *tok_it);
 		
 		if (current_function.empty()) {
-			out.insert(out.begin(), ".globl " + *(tok_it+1) + '\n');
-			out.insert(out.begin()+1, ".align " + std::to_string(types::sizes[type_vec_index]) + '\n'); // Align the same size as type
-			out.insert(out.begin()+2, ".type " + *(tok_it+1) + ", @object\n");
-			out.insert(out.begin()+3, *(tok_it+1) + ":\n");
+			out.push_back(".globl " + *(tok_it+1) + '\n');
+			out.push_back(".align " + std::to_string(types::sizes[type_vec_index]) + '\n'); // Align the same size as type
+			out.push_back(".type " + *(tok_it+1) + ", @object\n");
+			out.push_back(*(tok_it+1) + ":\n");
 			
 			std::string def_type = types::asm_types[type_vec_index];
 			def_type += ' ';
@@ -657,7 +678,7 @@ namespace token_function {
 				def_type += combine_toks(tok_it+2, _us_ltoks.end());
 			}
 
-			out.insert(out.begin()+4, def_type+'\n');
+			out.push_back(def_type+'\n');
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(INT_MAX);
@@ -881,18 +902,26 @@ int begin_compile(std::vector<std::string> args) {
 				size_t vec_index = index_of(variable_names, *tok_it);
 				if (variable_stack_locations[vec_index] != INT_MAX) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
+				} else {
+					*tok_it += "(%rip)";
+					commit(_us_ltoks);
 				}
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(functions) {
-				if (tok_it == _us_ltoks.begin()) {
-					token_function::function_call(tok_it);
-				}
+			WHILE_US_FIND_TOKEN("^") {
+				token_function::dereference(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("?") {
 				token_function::if_statement(tok_it, if_index);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
 				token_function::math(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKENS(functions) {
+				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
+					if (*(tok_it-1) != "#") {
+						token_function::function_call(tok_it);
+					}
+				}
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
 				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
@@ -906,9 +935,6 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("&") {
 				token_function::address_of(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("^") {
-				token_function::dereference(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("=") {
 				token_function::equals(tok_it);
@@ -939,7 +965,7 @@ int begin_compile(std::vector<std::string> args) {
 	
 	read.close();
 	write.close();
-
+	
 	system(((std::string)"as " + output_dir + "rcout.s -o " + output_dir + "rcout.o && ld " + output_dir + "rcout.o -e main -o " + output_dir + "a.out && " + output_dir + "a.out").c_str());
 
 	return 0;
