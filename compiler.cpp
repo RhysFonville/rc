@@ -593,7 +593,7 @@ namespace token_function {
 		RegisterRef reg = get_available_register();
 		out.push_back("leaq " + *(tok_it+1) + ", " + reg->get().names.q + '\n');
 		
-		commit(replace_tok(_us_ltoks, tok_it, reg->get().names.q));
+		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg->get().names.q));
 	}
 
 	void math(TokIt &tok_it) {
