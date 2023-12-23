@@ -388,25 +388,29 @@ bool is_number(const std::string &s) {
 
 bool is_variable(const std::string &str) {
 	// ex of variable: -4(%rbp)
-	size_t parenthesis = str.find('(');
-	if (parenthesis != -1) {
-		std::string num_before = str.substr(0, parenthesis);
-		if (is_number(num_before)) {
-			if (std::stoi(num_before) < 0) {
-				std::string reg = str.substr(parenthesis, str.size()-parenthesis);
-				if (reg == "(%rbp)") {
-					return true;
+	if (str.find("%rbp") != std::string::npos) {
+		size_t parenthesis = str.find('(');
+		if (parenthesis != -1) {
+			std::string num_before = str.substr(0, parenthesis);
+			if (is_number(num_before)) {
+				if (std::stoi(num_before) < 0) {
+					std::string reg = str.substr(parenthesis, str.size()-parenthesis);
+					if (reg == "(%rbp)") {
+						return true;
+					}
 				}
 			}
 		}
+	} else if (str.find("%rip") != std::string::npos) {
+		return true;
 	}
-
+	
 	return false;
 }
 
-bool is_pointer(const std::string &str) {
-	return str.find("(%rip)") != std::string::npos;
-}
+//bool is_pointer(const std::string &str) {
+//	return str.find("(%rip)") != std::string::npos;
+//}
 
 std::string set_operand_prefix(std::string str) {
 	if (!get_register(str).has_value() && str.back() != ')') {
@@ -416,11 +420,17 @@ std::string set_operand_prefix(std::string str) {
 	return str;
 }
 
-int get_size_of_asm_stack_variable(const std::string &str) {
-	int stack_offset = std::stoi(str.substr(1, str.find('(')-1));
-	int var_vec_index = index_of(variable_stack_locations, -stack_offset);
+int get_size_of_asm_variable(const std::string &str) {
+	if (str.find("%rbp") != std::string::npos) {
+		int stack_offset = std::stoi(str.substr(1, str.find('(')-1));
+		int var_vec_index = index_of(variable_stack_locations, -stack_offset);
+		
+		return variable_sizes[var_vec_index];
+	} else if (str.find("%rip") != std::string::npos) {
+		return variable_sizes[index_of(variable_names, str.substr(0, str.find('(')))];
+	}
 
-	return variable_sizes[var_vec_index];
+	return -1;
 }
 
 int get_size_of_register(const std::string &str) {
@@ -452,7 +462,7 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 	}
 
 	if (is_variable(str)) {
-		return get_size_of_asm_stack_variable(str);
+		return get_size_of_asm_variable(str);
 	} else if (is_number(str)) {
 		if (number_default != -1) return number_default;
 		return get_size_of_number(str);
@@ -490,13 +500,14 @@ std::string get_mov_instruction(int lhs, int rhs) {
 	if (lhs < rhs)
 		return sign_extension_mov(lhs, rhs);
 	else
-		return "mov" + types::suffixes[index_of(types::sizes, rhs)];
+		return "mov" + (rhs != -1 ? types::suffixes[index_of(types::sizes, rhs)] : "q");
 }
 
 std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
-	return get_mov_instruction((is_pointer(lhs) ? rhs_size : lhs_size), rhs_size);
+	//return get_mov_instruction((is_pointer(lhs) ? rhs_size : lhs_size), rhs_size);
+	return get_mov_instruction((lhs.find("(%rip)") != std::string::npos ? rhs_size : lhs_size), rhs_size);
 }
 
 void unoccupy_if_register(const std::string &reg_name) {
@@ -531,14 +542,15 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	// This would also be a good time to cast the lhs to the appropriate size.
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
 		unoccupy_if_register(lhs);
-		if (is_pointer(lhs) && is_pointer(rhs)) {
-			RegisterRef reg = get_available_register();
-			reg->get().occupied = true;
-			out.push_back("movq " + lhs + ", " + reg->get().name_from_size(8) + '\n');
-			lhs = reg->get().name_from_size(8);
-		} else if (is_pointer(lhs) && !is_pointer(rhs)) {
-			
-		} else if (lhs_size == 4 && max_size == 8) { // int -> long
+		//if (is_pointer(lhs) && is_pointer(rhs)) {
+		//	RegisterRef reg = get_available_register();
+		//	reg->get().occupied = true;
+		//	out.push_back("movq " + lhs + ", " + reg->get().name_from_size(8) + '\n');
+		//	lhs = reg->get().name_from_size(8);
+		//} else if (is_pointer(lhs) && !is_pointer(rhs)) {
+		//	
+		//} else
+		if (lhs_size == 4 && max_size == 8) { // int -> long
 			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
 			
@@ -568,13 +580,12 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 namespace token_function {
 	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
-		commit(_us_ltoks);
-		if (is_pointer(*tok_it)) {
-			RegisterRef reg = get_available_register();
-			reg->get().occupied = true;
-			out.push_back("movq " + *(tok_it) + ", " + reg->get().name_from_size(8) + '\n');
-			commit(replace_tok(_us_ltoks, tok_it, reg->get().name_from_size(8)));
-		}
+		//if (is_pointer(*tok_it)) {
+		//	RegisterRef reg = get_available_register();
+		//	reg->get().occupied = true;
+		//	out.push_back("movq " + *(tok_it) + ", " + reg->get().name_from_size(8) + '\n');
+		//	commit(replace_tok(_us_ltoks, tok_it, reg->get().name_from_size(8)));
+		//}
 		commit(replace_tok(_us_ltoks, tok_it, '(' + *tok_it + ')'));
 	}
 
@@ -673,7 +684,13 @@ namespace token_function {
 			out.push_back(".type " + *(tok_it+1) + ", @object\n");
 			out.push_back(".size " + *(tok_it+1) + ", 8\n");
 			out.push_back(*(tok_it+1) + ":\n");
-			out.push_back(".zero 8\n");
+			
+			int size = types::sizes[type_vec_index];
+			if (tok_it >= _us_ltoks.end()-1) {
+				out.push_back(".zero " + std::to_string(size) + '\n');
+			} else {
+				out.push_back(types::asm_types[type_vec_index] + ' ' + *(tok_it+2) + '\n');
+			}
 
 			variable_names.push_back(*(tok_it+1));
 			variable_sizes.push_back(types::sizes[type_vec_index]);
