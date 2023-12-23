@@ -93,4 +93,4 @@ Base functions (or syscalls) can be easily identified in rc since it starts with
 
 <h3>Tests</h3>
 
-The tests folder includes a `testrc` executable and a tests folder that includes the programs to compile and run. Adding a new test program and running `testrc` should run your tests.
+The tests folder includes a `testrc` executable and a tests folder that includes the programs to compile and run. Adding a new test program and running `testrc` should run your tests. Or, if you are using my makefile, just run `make test`.
