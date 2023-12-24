@@ -3,3 +3,5 @@ asm-temp
 *a.out
 *.o
 *.txt
+!tests/*
+core

@@ -510,6 +510,10 @@ std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) 
 	return get_mov_instruction((lhs.find("(%rip)") != std::string::npos ? rhs_size : lhs_size), rhs_size);
 }
 
+std::string mov(const std::string &lhs, const std::string &rhs) {
+	return get_mov_instruction(lhs, rhs) + ' ' + set_operand_prefix(lhs) + ", " + set_operand_prefix(rhs);
+}
+
 void unoccupy_if_register(const std::string &reg_name) {
 	if (RegisterRef reg = get_register(reg_name); reg.has_value()) {
 		reg->get().occupied = false;
@@ -627,7 +631,7 @@ namespace token_function {
 			*/
 
 			// 'rhs' will store result.
-			out.push_back(get_mov_instruction(*(tok_it-1), rhs_name) + ' ' + set_operand_prefix(*(tok_it-1)) + ", " + set_operand_prefix(rhs_name) + '\n');
+			out.push_back(mov(*(tok_it-1), rhs_name) + '\n');
 			
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
 			out.push_back(
@@ -675,8 +679,8 @@ namespace token_function {
 		size_t type_vec_index = index_of(types::types, *tok_it);
 		
 		if (current_function.empty()) {
-			if (std::ranges::find(out, ".bss\n") == out.end()) {
-				out.push_back(".bss\n");
+			if (std::ranges::find(out, ".data\n") == out.end()) {
+				out.push_back(".data\n");
 			}
 
 			out.push_back(".globl " + *(tok_it+1) + '\n');
@@ -712,12 +716,7 @@ namespace token_function {
 	void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
 		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs, get_size_of_operand(rhs), change_reg_size);
 		
-		std::string out_str = "";
-		out_str += get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
-		out_str += set_operand_prefix(lhs_rhs.first) + ", ";
-		out_str += set_operand_prefix(lhs_rhs.second) + '\n';
-
-		out.push_back(out_str);
+		out.push_back(mov(lhs_rhs.first, lhs_rhs.second) + '\n');
 		
 		unoccupy_if_register(lhs_rhs.first);
 		unoccupy_if_register(lhs_rhs.second);
@@ -796,30 +795,31 @@ namespace token_function {
 	}
 
 	void if_statement(TokIt tok_it, int &if_index) {
-		std::string rhs = *(tok_it+3);
-		std::string lhs = *(tok_it+1);
-
-		int rhs_size = get_size_of_operand(rhs); 
-		int lhs_size = get_size_of_operand(lhs);
-		int cmp_size = std::max({ lhs_size, rhs_size });
+		std::string rhs = *(tok_it-3);
+		std::string lhs = *(tok_it-1);
 		
-		if (lhs_size < cmp_size) {
+		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
-			out.insert(out.end()-2, get_mov_instruction(lhs_size, cmp_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(cmp_size) + '\n');
-			lhs = reg->get().name_from_size(cmp_size);
-		} else/* if (rhs_size < cmp_size)*/ {
-			RegisterRef reg = get_available_register();
-			out.insert(out.end()-2, get_mov_instruction(rhs_size, cmp_size) + ' ' + set_operand_prefix(rhs) + ", " + reg->get().name_from_size(cmp_size) + '\n');
-			rhs = reg->get().name_from_size(cmp_size);
+			out.push_back(mov(str, reg->get().name_from_size(get_size_of_number(str))) + '\n');
+			str = reg->get().name_from_size(get_size_of_number(str));
+		}; // Trying to somewhat stay DRY...
+		
+		if (is_number(rhs)) {
+			change_to_reg(rhs);
 		}
-
+		if (is_number(lhs)) {
+			change_to_reg(lhs);
+		}
+		
+		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
+		
 		// Insert before call instruction
-		out.insert(out.end()-2, "cmp" + types::suffixes[index_of(types::sizes, cmp_size)] +
-			' ' + set_operand_prefix(rhs) + ", " + set_operand_prefix(lhs) + '\n'
+		out.push_back("cmp" + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] +
+			' ' + set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 		);
 
 		std::string op = "";
-		if (*(tok_it+2) == "==") {
+		if (*(tok_it-2) == "==") {
 			op = "ne";
 		} else if (*(tok_it+2) == "!=") {
 			op = "e";
@@ -833,12 +833,14 @@ namespace token_function {
 			op = "l";
 		}
 		
-		// Insert before call instruction but after cmp instruction
-		out.insert(out.end()-2, 'j' + op + " .IF" + std::to_string(if_index) + '\n');
-		// After call instruction
-		out.push_back(".IF" + std::to_string(if_index) + ":\n");
+		out.push_back('j' + op + " .IF" + std::to_string(if_index) + '\n');
 		if_index++;
 	}
+
+	void if_end(TokIt tok_it, int if_index) {
+		out.push_back(".IF" + std::to_string(if_index-1) + ":\n");
+	}
+
 	void macro(TokIt tok_it, std::vector<std::string> &lines) {
 		if (*(tok_it+1) == "inc") {
 			std::ifstream in(*(tok_it+2));
@@ -923,9 +925,6 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("^") {
 				token_function::dereference(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("?") {
-				token_function::if_statement(tok_it, if_index);
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
 				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
@@ -937,12 +936,18 @@ int begin_compile(std::vector<std::string> args) {
 				}
 				token_function::function_call(tok_it);
 			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("?") {
+				token_function::if_statement(tok_it, if_index);
+			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
 				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
 				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("?>") {
+				token_function::if_end(tok_it, if_index);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
