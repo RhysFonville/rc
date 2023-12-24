@@ -72,15 +72,17 @@ As you can see, you must have a main function.
 
 <h4>Conditionals</h4>
 
-Conditionals can only be used when/by calling functions. To best explain what this means, I will show an example.
-
 The syntax of a conditional is as follows:
 ```
-my_example_function ? a == b
+a == b ?
+    // do stuff
+?>
 ```
-In this example, my_example will only be called if a is equal to b.
+In this example, stuff will only be done if a is equal to b.
 
 The conditional expressions are just the same as *most* other languages (ahem, lua. Like why ~=? It doesn't make sense).
+
+The `?` shows that this is a conditional, and `a == b` is the condition. `?>` is used to end a conditional. Note that the token for ending a function is different than the token to end an if statement (a function is `#>`, and a conditional is `?>`).
 
 <h4>Base Functions</h4>
 
