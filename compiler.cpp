@@ -800,6 +800,7 @@ namespace token_function {
 		
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
+			reg->get().occupied = true;
 			out.push_back(mov(str, reg->get().name_from_size(get_size_of_number(str))) + '\n');
 			str = reg->get().name_from_size(get_size_of_number(str));
 		}; // Trying to somewhat stay DRY...
@@ -821,15 +822,15 @@ namespace token_function {
 		std::string op = "";
 		if (*(tok_it-2) == "==") {
 			op = "ne";
-		} else if (*(tok_it+2) == "!=") {
+		} else if (*(tok_it-2) == "!=") {
 			op = "e";
-		} else if (*(tok_it+2) == "<") {
+		} else if (*(tok_it-2) == "<") {
 			op = "ge";
-		} else if (*(tok_it+2) == "<=") {
+		} else if (*(tok_it-2) == "<=") {
 			op = "g";
-		} else if (*(tok_it+2) == ">") {
+		} else if (*(tok_it-2) == ">") {
 			op = "le";
-		} else if (*(tok_it+2)  == ">=") {
+		} else if (*(tok_it-2)  == ">=") {
 			op = "l";
 		}
 		
@@ -840,7 +841,16 @@ namespace token_function {
 	void if_end(TokIt tok_it, int if_index) {
 		out.push_back(".IF" + std::to_string(if_index-1) + ":\n");
 	}
-
+	
+	void else_statement(TokIt tok_it, int &if_index) {
+		out.insert(out.end()-1, "jmp .IF" + std::to_string(if_index) + '\n');
+		if_index++;
+	}
+	
+	void else_end(TokIt tok_it, int if_index) {
+		out.push_back(".IF" + std::to_string(if_index-1) + ":\n");	
+	}
+	
 	void macro(TokIt tok_it, std::vector<std::string> &lines) {
 		if (*(tok_it+1) == "inc") {
 			std::ifstream in(*(tok_it+2));
@@ -936,9 +946,6 @@ int begin_compile(std::vector<std::string> args) {
 				}
 				token_function::function_call(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("?") {
-				token_function::if_statement(tok_it, if_index);
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
 				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
 				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
@@ -948,6 +955,15 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("?>") {
 				token_function::if_end(tok_it, if_index);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("??>") {
+				token_function::else_end(tok_it, if_index);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("?") {
+				token_function::if_statement(tok_it, if_index);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("??") {
+				token_function::else_statement(tok_it, if_index);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
