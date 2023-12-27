@@ -822,15 +822,15 @@ namespace token_function {
 		std::string op = "";
 		if (*(tok_it-2) == "==") {
 			op = "ne";
-		} else if (*(tok_it+2) == "!=") {
+		} else if (*(tok_it-2) == "!=") {
 			op = "e";
-		} else if (*(tok_it+2) == "<") {
+		} else if (*(tok_it-2) == "<") {
 			op = "ge";
-		} else if (*(tok_it+2) == "<=") {
+		} else if (*(tok_it-2) == "<=") {
 			op = "g";
-		} else if (*(tok_it+2) == ">") {
+		} else if (*(tok_it-2) == ">") {
 			op = "le";
-		} else if (*(tok_it+2)  == ">=") {
+		} else if (*(tok_it-2)  == ">=") {
 			op = "l";
 		}
 		

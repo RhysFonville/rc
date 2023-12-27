@@ -3,7 +3,7 @@
 
 class Token {
 public:
-	Token(std::string token, bool word = false) : token(token)/*, is_word(is_word)*/ { }
+	Token(std::string token, bool word = false) : token(token) { }
 	Token() : token("") { }
 
 	std::string token;
@@ -11,7 +11,7 @@ public:
 
 static std::vector<Token> tokens = {
 	Token(" "), Token("#>"), Token("??>"), Token("?>"), Token("#"), Token("("), Token(")"), Token("\""), Token("//"), Token("*"), Token("/"), Token("%"), Token("+"),	
-	Token("-"), Token(">"), Token("<"), Token("^"), Token("&"), Token("=="), Token("!="), Token("<="), Token(">="), Token(">"), Token("<"),
+	Token("-"), Token("<="), Token(">="), Token(">"), Token("<"), Token("^"), Token("&"), Token("=="), Token("!="), Token(">"), Token("<"),
 	Token("="), Token("??"), Token("?")
 };
 
