@@ -248,8 +248,8 @@ std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 				for (auto cit = find_quote; cit != find_end_quote+1; ++cit) {
 					str += *cit;
 				}
-				str.erase(0, 1);
-				str.erase(str.size() - 1);
+				//str.erase(0, 1);
+				//str.erase(str.size() - 1);
 
 				ret.erase(find_quote, find_end_quote+1);
 				ret.insert(find_quote, str);
@@ -678,7 +678,7 @@ namespace token_function {
 	void variable_declaration(TokIt tok_it, std::string current_function, int &current_stack_size) {
 		size_t type_vec_index = index_of(types::types, *tok_it);
 		
-		if (current_function.empty()) {
+		if (current_function.empty() || (*tok_it == "str" || *tok_it == "nstr")) {
 			if (std::ranges::find(out, ".data\n") == out.end()) {
 				out.push_back(".data\n");
 			}
@@ -686,7 +686,7 @@ namespace token_function {
 			out.push_back(".globl " + *(tok_it+1) + '\n');
 			out.push_back(".align 8\n");
 			out.push_back(".type " + *(tok_it+1) + ", @object\n");
-			out.push_back(".size " + *(tok_it+1) + ", 8\n");
+			out.push_back(".size " + *(tok_it+1) + ", " + std::to_string(types::sizes[type_vec_index]) + '\n');
 			out.push_back(*(tok_it+1) + ":\n");
 			
 			int size = types::sizes[type_vec_index];
@@ -853,7 +853,7 @@ namespace token_function {
 	
 	void macro(TokIt tok_it, std::vector<std::string> &lines) {
 		if (*(tok_it+1) == "inc") {
-			std::ifstream in(*(tok_it+2));
+			/*std::ifstream in(*(tok_it+2));
 			
 			std::vector<std::string> inc_lines = { };
 			std::string l;
@@ -862,7 +862,8 @@ namespace token_function {
 			}
 			
 			std::cout << *(tok_it+2) << std::endl;
-			lines.insert(lines.begin()+line_number+1, inc_lines.begin(), inc_lines.end());
+			lines.insert(lines.begin()+line_number+1, inc_lines.begin(), inc_lines.end());*/
+			out.push_back(".include " + combine_toks(tok_it+2, _us_ltoks.end()) + '\n');
 		}
 	}
 }
