@@ -58,6 +58,9 @@
 				out.push_back(str + '\n'); \
 			}
 
+#define DATA_ASM (std::ranges::find(out, ".data\n"))
+#define TEXT_ASM (std::ranges::find(out, ".text\n"))
+
 using TokIt = std::vector<std::string>::iterator;
 
 struct Register {
@@ -143,8 +146,8 @@ std::vector<Register> registers = {
 namespace types {
 	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
-	const std::vector<int> sizes = { 4, 0, 0, 8, 2, 1 };
-	const std::vector<std::string> suffixes = { "l", "X", "X", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
+	const std::vector<int> sizes = { 4, 8, 8, 8, 2, 1 };
+	const std::vector<std::string> suffixes = { "l", "q", "q", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
 };
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
 
@@ -197,6 +200,40 @@ std::string trim(std::string s, const char* t = ws) {
 		return "";
 }
 
+template <typename T>
+size_t from_it(const std::vector<T> &vec, const typename std::vector<T>::const_iterator &it) {
+	return std::distance(vec.begin(), it);
+}
+
+std::vector<std::string> replace_toks(std::vector<std::string> toks, size_t begin, size_t end, const std::string &str) {
+	toks.erase(toks.begin()+begin, toks.begin()+end+1);
+	toks.insert(toks.begin()+begin, str);
+	
+	return toks;
+}
+
+std::vector<std::string> replace_toks(const std::vector<std::string> &toks, std::vector<std::string>::const_iterator begin,
+		std::vector<std::string>::const_iterator end, const std::string &str) {
+	return replace_toks(toks, from_it(toks, begin), from_it(toks, end), str);
+}
+
+std::vector<std::string> replace_tok(std::vector<std::string> toks, size_t i, const std::string &str) {
+	toks[i] = str;
+	return toks;
+}
+
+std::vector<std::string> replace_tok(const std::vector<std::string> &toks, std::vector<std::string>::const_iterator it, const std::string &str) {
+	return replace_tok(toks, from_it(toks, it), str);
+}
+
+std::string combine_toks(const std::vector<std::string>::const_iterator &begin, const std::vector<std::string>::const_iterator &end) {
+	std::string ret = "";
+	for (auto it = begin; it != end; it++) {
+		ret += *it;
+	}
+	return ret;
+}
+
 std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 	std::vector<std::string> ret;
 	std::vector<bool> ret_is_token;
@@ -236,30 +273,21 @@ std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 		}
 	}
 	
-	std::vector<std::string>::const_iterator find_quote;
-	std::vector<std::string>::const_iterator quote_begin = ret.begin();
-	while (true) {
-		find_quote = std::find(quote_begin, ret.cend(), "\"");
-		if (find_quote != ret.end()) {
-				std::vector<std::string>::const_iterator end = ret.end();
-				std::vector<std::string>::const_iterator find_end_quote = std::find(find_quote+1, end, "\"");
-				
-				std::string str = "";
-				for (auto cit = find_quote; cit != find_end_quote+1; ++cit) {
-					str += *cit;
-				}
-				//str.erase(0, 1);
-				//str.erase(str.size() - 1);
-
-				ret.erase(find_quote, find_end_quote+1);
-				ret.insert(find_quote, str);
-				
-				quote_begin = find_end_quote;
-		} else {
-			break;
+	size_t quote_begin = 0;
+	bool in_quotes = false;
+	for (int i = 0; i < ret.size(); i++) {
+		if (ret[i] == "\"") {
+			if (!in_quotes) {
+				quote_begin = i;
+				in_quotes = true;
+				continue;
+	  		} else {
+				in_quotes = false;
+				ret = replace_toks(ret, ret.begin()+quote_begin+1, ret.begin()+i-1, combine_toks(ret.begin()+quote_begin+1, ret.begin()+i));
+			}
 		}
 	}
-
+	
 	return ret;
 }
 
@@ -293,10 +321,6 @@ std::vector<std::string>::const_iterator find_first_tok(const std::vector<std::s
 	return ltoks.end();
 }
 
-template <typename T>
-size_t from_it(const std::vector<T> &vec, const typename std::vector<T>::const_iterator &it) {
-	return std::distance(vec.begin(), it);
-}
 
 template <typename T>
 size_t index_of(const std::vector<T> &vec, const T &val) {
@@ -308,26 +332,6 @@ size_t index_of_last(const std::vector<T> &vec, const T &val) {
 	return from_it(vec, std::find(vec.rbegin(), vec.rend(), val).base());
 }
 
-std::vector<std::string> replace_toks(std::vector<std::string> toks, size_t begin, size_t end, const std::string &str) {
-	toks.erase(toks.begin()+begin, toks.begin()+end+1);
-	toks.insert(toks.begin()+begin, str);
-	
-	return toks;
-}
-
-std::vector<std::string> replace_toks(const std::vector<std::string> &toks, std::vector<std::string>::const_iterator begin,
-		std::vector<std::string>::const_iterator end, const std::string &str) {
-	return replace_toks(toks, from_it(toks, begin), from_it(toks, end), str);
-}
-
-std::vector<std::string> replace_tok(std::vector<std::string> toks, size_t i, const std::string &str) {
-	toks[i] = str;
-	return toks;
-}
-
-std::vector<std::string> replace_tok(const std::vector<std::string> &toks, std::vector<std::string>::const_iterator it, const std::string &str) {
-	return replace_tok(toks, from_it(toks, it), str);
-}
 
 void commit(const std::vector<std::string> &new_vec) {
 	_ltoks = new_vec;
@@ -339,13 +343,6 @@ void commit(const std::vector<std::string> &new_vec) {
 }
 
 
-std::string combine_toks(const std::vector<std::string>::const_iterator &begin, const std::vector<std::string>::const_iterator &end) {
-	std::string ret = "";
-	for (auto it = begin; it != end; it++) {
-		ret += *it;
-	}
-	return ret;
-}
 
 RegisterRef get_available_register() {
 	for (Register &reg : registers) {
@@ -675,36 +672,38 @@ namespace token_function {
 		}
 	}
 
-	void variable_declaration(TokIt tok_it, std::string current_function, int &current_stack_size) {
-		size_t type_vec_index = index_of(types::types, *tok_it);
+	void variable_declaration(const std::string &type, const std::string &name, std::string value,
+						   const std::string &current_function, int &current_stack_size, bool is_pointer) {
+		size_t type_vec_index = index_of(types::types, type);
 		
-		if (current_function.empty() || (*tok_it == "str" || *tok_it == "nstr")) {
-			if (std::ranges::find(out, ".data\n") == out.end()) {
-				out.push_back(".data\n");
-			}
+		if (DATA_ASM == out.end()) {
+			out.insert(TEXT_ASM, ".data\n");
+		}
 
-			out.push_back(".globl " + *(tok_it+1) + '\n');
-			out.push_back(".align 8\n");
-			out.push_back(".type " + *(tok_it+1) + ", @object\n");
-			out.push_back(".size " + *(tok_it+1) + ", " + std::to_string(types::sizes[type_vec_index]) + '\n');
-			out.push_back(*(tok_it+1) + ":\n");
+		if (is_pointer) {
+			variable_declaration("lng", name, value, current_function, current_stack_size, false);
+		} else if (current_function.empty()) {
+			out.insert(DATA_ASM+1, ".globl " + name + '\n');
+			out.insert(DATA_ASM+2, ".align 8\n");
+			out.insert(DATA_ASM+3, ".type " + name + ", @object\n");
+			out.insert(DATA_ASM+4, ".size " + name + ", " + std::to_string(types::sizes[type_vec_index]) + '\n');
+			out.insert(DATA_ASM+5, name + ":\n");
 			
-			int size = types::sizes[type_vec_index];
-			if (tok_it >= _us_ltoks.end()-1) {
-				out.push_back(".zero " + std::to_string(size) + '\n');
-			} else {
-				out.push_back(types::asm_types[type_vec_index] + ' ' + *(tok_it+2) + '\n');
+			//int size = types::sizes[type_vec_index];
+			if (!value.empty()) {
+				value = "0";
 			}
-
-			variable_names.push_back(*(tok_it+1));
+			out.insert(DATA_ASM+6, types::asm_types[type_vec_index] + ' ' + value + '\n');
+			
+			variable_names.push_back(name);
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(INT_MAX);
 		} else {
 			current_stack_size += types::sizes[type_vec_index];
-			variable_names.push_back(*(tok_it+1));
+			variable_names.push_back(name);
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(-current_stack_size); 
-			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+2), *(tok_it+1));
+			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
 			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
 			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
 			out.push_back(str);
@@ -713,6 +712,10 @@ namespace token_function {
 		}
 	}
 
+	void variable_declaration(TokIt tok_it, const std::string &current_function, int &current_stack_size, bool is_pointer) {
+		variable_declaration(*tok_it, *(tok_it+1), *(tok_it+2), current_function, current_stack_size, is_pointer);
+	}
+	
 	void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
 		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs, get_size_of_operand(rhs), change_reg_size);
 		
@@ -866,6 +869,29 @@ namespace token_function {
 			out.push_back(".include " + combine_toks(tok_it+2, _us_ltoks.end()) + '\n');
 		}
 	}
+	
+	void quote(TokIt tok_it, int &str_index, bool &in_quote) {
+		if (DATA_ASM == out.end()) {
+			out.insert(TEXT_ASM, ".data\n");
+		}
+		if (in_quote) {
+			out.insert(DATA_ASM+1, ".STR" + std::to_string(str_index) + ":\n");
+			
+			std::string str;
+			if (tok_it != _us_ltoks.begin()) {
+				str = (*(tok_it-1) == "n" ? ".ascii" : ".asciz");
+			} else {
+				str = ".asciz";
+			}
+			
+			out.insert(DATA_ASM+2, str + ' ' + combine_toks(tok_it-2, tok_it+1) + std::string(1, '\n'));
+			commit(replace_toks(_us_ltoks, (str == "asciz" ? tok_it-2 : tok_it-3), tok_it, ".STR" + std::to_string(str_index)));
+			variable_names.push_back(".STR" + std::to_string(str_index));
+			variable_sizes.push_back(8);
+			variable_stack_locations.push_back(INT_MAX);
+		}
+		in_quote = !in_quote;
+	}
 }
 
 int begin_compile(std::vector<std::string> args) {
@@ -895,6 +921,8 @@ int begin_compile(std::vector<std::string> args) {
 	std::string current_function = "";
 	
 	int if_index = 0;
+	int str_index = 0;
+	bool in_quote = false;
 
 	registers.push_back(Register());
 	
@@ -915,11 +943,16 @@ int begin_compile(std::vector<std::string> args) {
 			_ltoks = split(l);
 			_us_ltoks = unspaced(_ltoks);
 			
+			//std::ranges::for_each(_us_ltoks,[](auto s){std::cout<<s<<' ';});std::cout<<std::endl; // print all toks
+			
 			WHILE_US_FIND_TOKEN("//") {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {
 					_us_ltoks.erase(_us_ltoks.begin()+i);
 				}
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("\"") {
+				token_function::quote(tok_it, str_index, in_quote);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#") {
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
@@ -936,6 +969,9 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("^") {
 				token_function::dereference(tok_it);
 			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("&") {
+				token_function::address_of(tok_it);
+			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
 				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
@@ -949,7 +985,7 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
 				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
-				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
+				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index], (*(tok_it-1) == "^^"));
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
@@ -968,9 +1004,6 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("&") {
-				token_function::address_of(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("=") {
 				token_function::equals(tok_it);
