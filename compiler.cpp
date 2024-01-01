@@ -153,7 +153,6 @@ namespace types {
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
 
 std::vector<std::string> out;
-
 using uchar = unsigned char;
 
 const char* const ws = " \t\n\r\f\v";
@@ -685,7 +684,7 @@ namespace token_function {
 		if (DATA_ASM == out.end()) {
 			out.insert(TEXT_ASM, ".data\n");
 		}
-
+		
 		if (is_pointer) {
 			variable_declaration("lng", name, value, current_function, current_stack_size, false);
 		} else if (current_function.empty()) {
@@ -696,9 +695,6 @@ namespace token_function {
 			out.insert(DATA_ASM+5, name + ":\n");
 			
 			//int size = types::sizes[type_vec_index];
-			if (!value.empty()) {
-				value = "0";
-			}
 			out.insert(DATA_ASM+6, types::asm_types[type_vec_index] + ' ' + value + '\n');
 			
 			variable_names.push_back(name);
@@ -719,7 +715,11 @@ namespace token_function {
 	}
 
 	void variable_declaration(TokIt tok_it, const std::string &current_function, int &current_stack_size, bool is_pointer) {
-		variable_declaration(*tok_it, *(tok_it+1), *(tok_it+2), current_function, current_stack_size, is_pointer);
+		std::string value = "0";
+		if (tok_it+2 != _us_ltoks.end()) {
+			value = *(tok_it+2);
+		}
+		variable_declaration(*tok_it, *(tok_it+1), value, current_function, current_stack_size, is_pointer);
 	}
 	
 	void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
@@ -885,22 +885,24 @@ namespace token_function {
 			
 			std::string str;
 			if (tok_it != _us_ltoks.begin()) {
-				str = (*(tok_it-1) == "n" ? ".ascii" : ".asciz");
+				str = (*(tok_it-3) == "n" ? ".ascii" : ".asciz");
 			} else {
 				str = ".asciz";
 			}
 			
 			out.insert(DATA_ASM+2, str + ' ' + combine_toks(tok_it-2, tok_it+1) + std::string(1, '\n'));
-			commit(replace_toks(_us_ltoks, (str == "asciz" ? tok_it-2 : tok_it-3), tok_it, ".STR" + std::to_string(str_index)));
+			commit(replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it, ".STR" + std::to_string(str_index)));
 			variable_names.push_back(".STR" + std::to_string(str_index));
 			variable_sizes.push_back(8);
 			variable_stack_locations.push_back(INT_MAX);
+			str_index++;
 		}
 		in_quote = !in_quote;
 	}
 }
 
 int begin_compile(std::vector<std::string> args) {
+	try {
 	std::string output_dir = "./";
 	bool print_line_in_asm = false;
 	if (args.size() < 2) {
@@ -963,6 +965,9 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("#") {
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
 			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("&") {
+				token_function::address_of(tok_it);
+			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(variable_names) {
 				size_t vec_index = index_of(variable_names, *tok_it);
 				if (variable_stack_locations[vec_index] != INT_MAX) {
@@ -974,9 +979,6 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("^") {
 				token_function::dereference(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("&") {
-				token_function::address_of(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
 				token_function::math(tok_it);
@@ -990,8 +992,17 @@ int begin_compile(std::vector<std::string> args) {
 				token_function::function_call(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
-				size_t func_vec_index = from_it(functions, std::find(functions.begin(), functions.end(), current_function));
-				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index], (*(tok_it-1) == "^^"));
+				size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
+				bool is_pointer = false;
+				if (tok_it != _us_ltoks.begin()) {
+					is_pointer = (*(tok_it-1) == "^^");
+				}
+				//if (functions.empty() || current_function.empty()) {
+				//	int ss;
+				//	token_function::variable_declaration(tok_it, "", ss, is_pointer);
+				//} else {
+					token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index], is_pointer);
+				//}
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
@@ -1039,7 +1050,10 @@ int begin_compile(std::vector<std::string> args) {
 	write.close();
 	
 	system(((std::string)"as " + output_dir + "rcout.s -o " + output_dir + "rcout.o && ld " + output_dir + "rcout.o -e main -o " + output_dir + "a.out && " + output_dir + "a.out").c_str());
-
+	}
+	catch (const std::logic_error &e) { 
+		std::cerr << e.what() << std::endl;
+	}
 	return 0;
 }
 
