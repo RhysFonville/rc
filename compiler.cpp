@@ -136,6 +136,7 @@ std::vector<std::string> _us_ltoks;
 std::vector<std::string> variable_names = { };
 std::vector<int> variable_sizes = { };
 std::vector<int> variable_stack_locations = { };
+std::vector<bool> variable_is_pointer = { };
 
 std::vector<Register> registers = {
 	Register("rbx","ebx","bx","bh","bl"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
@@ -502,9 +503,16 @@ std::string get_mov_instruction(int lhs, int rhs) {
 
 std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	int rhs_size = get_size_of_operand(rhs);
-	int lhs_size = get_size_of_operand(lhs, rhs_size);
+	int lhs_size;
+	if (rhs.front() == '(' && rhs.back() == ')') {
+		lhs_size = get_size_of_operand(lhs);
+		rhs_size = lhs_size;
+	} else {
+		lhs_size = get_size_of_operand(lhs, rhs_size);
+	}
+	
 	//return get_mov_instruction((is_pointer(lhs) ? rhs_size : lhs_size), rhs_size);
-	return get_mov_instruction((lhs.find("(%rip)") != std::string::npos ? rhs_size : lhs_size), rhs_size);
+	return get_mov_instruction(/*(lhs.find("(%rip)") != std::string::npos ? rhs_size : lhs_size)*/lhs_size, rhs_size);
 }
 
 std::string mov(const std::string &lhs, const std::string &rhs) {
@@ -581,12 +589,10 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 namespace token_function {
 	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
-		//if (is_pointer(*tok_it)) {
-		//	RegisterRef reg = get_available_register();
-		//	reg->get().occupied = true;
-		//	out.push_back("movq " + *(tok_it) + ", " + reg->get().name_from_size(8) + '\n');
-		//	commit(replace_tok(_us_ltoks, tok_it, reg->get().name_from_size(8)));
-		//}
+		RegisterRef reg = get_available_register();
+		reg->get().occupied = true;
+		out.push_back("movq " + *(tok_it) + ", " + reg->get().name_from_size(8) + '\n');
+		commit(replace_tok(_us_ltoks, tok_it, reg->get().name_from_size(8)));
 		commit(replace_tok(_us_ltoks, tok_it, '(' + *tok_it + ')'));
 	}
 
