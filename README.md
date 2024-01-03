@@ -27,17 +27,29 @@ The types include:
     - int
     - sht (short)
     - ch (character)
-    - str (string)
-    - nstr (string with no zero byte)
 
 To declare a variable, the syntax goes as follows:
+
+<h4>Pointers</h4>
+
+Defining a pointer looks something like this:
+```
+^^int my_int_pointer &some_regular_variable
+```
+This example defines a pointer to an integer (address of `some_regular_variable`).
+
+Honestly, the type doesn't really restrict you. It will probably just lead to some weird behaviour. So, you can assign pointers to anything, really.
+
+Note that with strings, if you want to set a character pointer to a string, you still have to add the address token in front of the string literal. Like this:
+```
+^^ch my_string &"Hello world!"
+```
+This might be changed later, idk
+
 ```
 int i 35
 ```
 This declares an integer named `i` with an initial value of 35. You are not required to give an initial value.
-
-
-Note: Strings can only be declared globally.
 
 <h4>Functions</h4>
 
