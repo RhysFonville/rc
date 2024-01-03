@@ -13,10 +13,11 @@ The rc directory that is cloned is where the executable for the compiler will be
 I recommend keeping this directory in the directory that you will be working and writing your rc code in.
 
 2. Compile and run your code 
+
+<i>Linux</i>
 ```
 rc/rc mycode.txt
 ```
-
 
 <h3>Syntax of the language</h3>
 
@@ -31,6 +32,10 @@ The types include:
 </ul>
 
 To declare a variable, the syntax goes as follows:
+```
+int i 35
+```
+This declares an integer named `i` with an initial value of 35. You are not required to give an initial value.
 
 <h4>Pointers</h4>
 
@@ -47,11 +52,6 @@ Note that with strings, if you want to set a character pointer to a string, you 
 ^^ch my_string &"Hello world!"
 ```
 This might be changed later, idk
-
-```
-int i 35
-```
-This declares an integer named `i` with an initial value of 35. You are not required to give an initial value.
 
 <h4>Functions</h4>
 
@@ -117,6 +117,7 @@ Base functions (or syscalls) can be easily identified in rc since it starts with
 ```
 `w` stands for write, `1` is to specify stdout, str is the string variable assumed to be defined earlier in the program, and 10 is the number of characters to write.
 
+Rc does not support all syscalls. Only sys_write, sys_read, and sys_exit. Their "names" are 'w' (as seen in the example), 'r', and 'e', respectively.
 
 <h3>Tests</h3>
 
