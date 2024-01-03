@@ -137,6 +137,9 @@ std::vector<std::string> variable_names = { };
 std::vector<int> variable_sizes = { };
 std::vector<int> variable_stack_locations = { };
 std::vector<bool> variable_is_pointer = { };
+std::vector<int> variable_true_pointer_size = { };
+
+std::vector<std::pair<std::string, std::string>> dereferenced_register_variable_correspondant = { };
 
 std::vector<Register> registers = {
 	Register("rbx","ebx","bx","bh","bl"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
@@ -147,9 +150,10 @@ std::vector<Register> registers = {
 namespace types {
 	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
 	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
-	const std::vector<int> sizes = { 4, 8, 8, 8, 2, 1 };
-	const std::vector<std::string> suffixes = { "l", "q", "q", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
+	const std::vector<int> sizes = { 4, 1, 1, 8, 2, 1 };
+	const std::vector<std::string> suffixes = { "l", "b", "b", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
 };
+
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
 
 std::vector<std::string> out;
@@ -405,6 +409,10 @@ bool is_variable(const std::string &str) {
 	return false;
 }
 
+bool is_dereferenced(const std::string &str) {
+	return (str.front() == '(' && str.back() == ')');
+}
+
 //bool is_pointer(const std::string &str) {
 //	return str.find("(%rip)") != std::string::npos;
 //}
@@ -453,12 +461,16 @@ int get_size_of_number(const std::string &str) {
 }
 
 int get_size_of_operand(std::string str, int number_default = -1) {
-	if (str.front() == '(' && str.back() == ')') {
+	int variable_index = index_of(variable_names, str);
+	if (is_dereferenced(str)) {
 		str.erase(str.begin());
 		str.pop_back();
-	}
-
-	if (is_variable(str)) {
+		if (RegisterRef reg = get_register(str); reg.has_value()) {
+			auto corresponding_variable_it = std::ranges::find_if(dereferenced_register_variable_correspondant, [&](auto p){ return (p.first == str); });
+			variable_index = index_of(variable_names, corresponding_variable_it->second);
+		}
+		return variable_true_pointer_size[variable_index];
+	} if (is_variable(str)) {
 		return get_size_of_asm_variable(str);
 	} else if (is_number(str)) {
 		if (number_default != -1) return number_default;
@@ -466,7 +478,7 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 	} else if (RegisterRef reg = get_register(str); reg.has_value()) {
 		return get_size_of_register(str);
 	} else if (auto it = std::ranges::find(variable_names, str); it != variable_names.end()) {
-		return variable_sizes[std::distance(variable_names.begin(), it)];	
+		return variable_sizes[variable_index];	
 	} else {
 		return -1;
 	}
@@ -503,12 +515,12 @@ std::string get_mov_instruction(int lhs, int rhs) {
 std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size;
-	if (rhs.front() == '(' && rhs.back() == ')') {
-		lhs_size = get_size_of_operand(lhs);
-		rhs_size = lhs_size;
-	} else {
+	//if (is_dereferenced(rhs)) {
+	//	lhs_size = get_size_of_operand(lhs);
+	//	rhs_size = lhs_size;
+	//} else {
 		lhs_size = get_size_of_operand(lhs, rhs_size);
-	}
+	//}
 	
 	//return get_mov_instruction((is_pointer(lhs) ? rhs_size : lhs_size), rhs_size);
 	return get_mov_instruction(/*(lhs.find("(%rip)") != std::string::npos ? rhs_size : lhs_size)*/lhs_size, rhs_size);
@@ -588,11 +600,14 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 namespace token_function {
 	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
+		std::string var_name = tok_it->substr(0, tok_it->find('('));
 		RegisterRef reg = get_available_register();
 		reg->get().occupied = true;
-		out.push_back("movq " + *(tok_it) + ", " + reg->get().name_from_size(8) + '\n');
-		commit(replace_tok(_us_ltoks, tok_it, reg->get().name_from_size(8)));
+		std::string reg_name = reg->get().name_from_size(8);
+		out.push_back("movq " + *(tok_it) + ", " + reg_name + '\n');
+		commit(replace_tok(_us_ltoks, tok_it, reg_name));
 		commit(replace_tok(_us_ltoks, tok_it, '(' + *tok_it + ')'));
+		dereferenced_register_variable_correspondant.push_back(std::make_pair(reg_name, var_name));
 	}
 
 	void address_of(TokIt tok_it) {
@@ -687,6 +702,8 @@ namespace token_function {
 		
 		if (is_pointer) {
 			variable_declaration("lng", name, value, current_function, current_stack_size, false);
+			variable_is_pointer.back() = true;
+			variable_true_pointer_size.back() = types::sizes[type_vec_index];
 		} else if (current_function.empty()) {
 			out.insert(DATA_ASM+1, ".globl " + name + '\n');
 			out.insert(DATA_ASM+2, ".align 8\n");
@@ -694,17 +711,20 @@ namespace token_function {
 			out.insert(DATA_ASM+4, ".size " + name + ", " + std::to_string(types::sizes[type_vec_index]) + '\n');
 			out.insert(DATA_ASM+5, name + ":\n");
 			
-			//int size = types::sizes[type_vec_index];
 			out.insert(DATA_ASM+6, types::asm_types[type_vec_index] + ' ' + value + '\n');
 			
 			variable_names.push_back(name);
 			variable_sizes.push_back(types::sizes[type_vec_index]);
 			variable_stack_locations.push_back(INT_MAX);
+			variable_is_pointer.push_back(false);
+			variable_true_pointer_size.push_back(-1);
 		} else {
 			current_stack_size += types::sizes[type_vec_index];
 			variable_names.push_back(name);
 			variable_sizes.push_back(types::sizes[type_vec_index]);
-			variable_stack_locations.push_back(-current_stack_size); 
+			variable_stack_locations.push_back(-current_stack_size);
+			variable_is_pointer.push_back(false);
+			variable_true_pointer_size.push_back(-1);
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
 			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
 			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
