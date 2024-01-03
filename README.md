@@ -23,10 +23,12 @@ rc/rc mycode.txt
 <h4>Variables</h4>
 
 The types include:
-    - lng (long)
-    - int
-    - sht (short)
-    - ch (character)
+<ul>
+    <li>lng (long)</li>
+    <li>int (integer)</li>
+    <li>sht (short)</li>
+    <li>ch (character)</li>
+</ul>
 
 To declare a variable, the syntax goes as follows:
 
