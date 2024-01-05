@@ -148,10 +148,10 @@ std::vector<Register> registers = {
 };
 
 namespace types {
-	const std::vector<std::string> types = { "int", "str", "nstr", "lng", "sht", "ch" };
-	const std::vector<std::string> asm_types = { ".word", ".asciz", ".ascii", ".long", ".short", ".byte" };
-	const std::vector<int> sizes = { 4, 1, 1, 8, 2, 1 };
-	const std::vector<std::string> suffixes = { "l", "b", "b", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
+	const std::vector<std::string> types = { "int", "lng", "sht", "ch" };
+	const std::vector<std::string> asm_types = { ".word", ".long", ".short", ".byte" };
+	const std::vector<int> sizes = { 4, 8, 2, 1 };
+	const std::vector<std::string> suffixes = { "l", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
 };
 
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
@@ -387,7 +387,7 @@ bool is_number(const std::string &s) {
     return !s.empty() && it == s.end();
 }
 
-bool is_variable(const std::string &str) {
+bool is_stack_variable(const std::string &str) {
 	// ex of variable: -4(%rbp)
 	if (str.find("%rbp") != std::string::npos) {
 		size_t parenthesis = str.find('(');
@@ -402,11 +402,20 @@ bool is_variable(const std::string &str) {
 				}
 			}
 		}
-	} else if (str.find("%rip") != std::string::npos) {
-		return true;
 	}
 	
 	return false;
+}
+
+bool is_global_variable(const std::string &str) {
+	if (str.find("%rip") != std::string::npos) {
+		return true;
+	}
+	return false;
+}
+
+bool is_variable(const std::string &str) {
+	return (is_stack_variable(str) || is_global_variable(str));
 }
 
 bool is_dereferenced(const std::string &str) {
@@ -600,7 +609,16 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 namespace token_function {
 	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
-		std::string var_name = tok_it->substr(0, tok_it->find('('));
+		std::string var_name = "";
+		std::string before_parenthesis = tok_it->substr(0, tok_it->find('('));
+		if (is_stack_variable(*tok_it)) {
+			var_name = variable_names[index_of(variable_stack_locations, std::stoi(before_parenthesis))];
+		} else if (is_global_variable(*tok_it)) {
+			var_name = before_parenthesis;
+		} else {
+			clog::error("Dereference: Only pointers can be dereferenced");
+		}
+
 		RegisterRef reg = get_available_register();
 		reg->get().occupied = true;
 		std::string reg_name = reg->get().name_from_size(8);
@@ -758,6 +776,9 @@ namespace token_function {
 	void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
 			out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
+			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
+			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
+			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
 			equals(*(tok_it+2), "%rdi");
 			equals(*(tok_it+3), "%rsi");
 			equals(*(tok_it+4), "%rdx");
@@ -767,6 +788,9 @@ namespace token_function {
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "r") { // READ
 			out.push_back("movq " + SYS_READ + ", %rax" + '\n');
+			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
+			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
+			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
 			equals(*(tok_it+2), "%rdi");
 			equals(*(tok_it+3), "%rsi");
 			equals(*(tok_it+4), "%rdx");
@@ -776,6 +800,7 @@ namespace token_function {
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "e") { // EXIT
 			out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
+			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
 			equals(*(tok_it+2), "%rdi");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
@@ -922,7 +947,6 @@ namespace token_function {
 }
 
 int begin_compile(std::vector<std::string> args) {
-	try {
 	std::string output_dir = "./";
 	bool print_line_in_asm = false;
 	if (args.size() < 2) {
@@ -985,8 +1009,13 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("#") {
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("&") {
-				token_function::address_of(tok_it);
+			WHILE_US_FIND_TOKENS(functions) {
+				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
+					if (*(tok_it-1) == "#") {
+						break;
+					}
+				}
+				token_function::function_call(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(variable_names) {
 				size_t vec_index = index_of(variable_names, *tok_it);
@@ -1000,16 +1029,14 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("^") {
 				token_function::dereference(tok_it);
 			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("&") {
+				token_function::address_of(tok_it);
+			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(math_symbols) {
 				token_function::math(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(functions) {
-				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
-					if (*(tok_it-1) == "#") {
-						break;
-					}
-				}
-				token_function::function_call(tok_it);
+			WHILE_US_FIND_TOKEN("=") {
+				token_function::equals(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKENS(types::types) {
 				size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
@@ -1042,9 +1069,6 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("=") {
-				token_function::equals(tok_it);
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN(">") {
 				token_function::base_functions(tok_it);
 			} WHILE_FIND_TOKEN_END
@@ -1070,10 +1094,7 @@ int begin_compile(std::vector<std::string> args) {
 	write.close();
 	
 	system(((std::string)"as " + output_dir + "rcout.s -o " + output_dir + "rcout.o && ld " + output_dir + "rcout.o -e main -o " + output_dir + "a.out && " + output_dir + "a.out").c_str());
-	}
-	catch (const std::logic_error &e) { 
-		std::cerr << e.what() << std::endl;
-	}
+	
 	return 0;
 }
 
