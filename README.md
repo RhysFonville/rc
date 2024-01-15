@@ -1,5 +1,5 @@
-# My terrible language
-## A custom compiler for a language that prioritizes typing as little as possible.
+<h1>My terrible language</h1>
+<h2>A custom compiler for a language that prioritizes typing as little as possible.</h2>
 
 
 <h3>To install/compile/run:</h3>
@@ -60,26 +60,27 @@ A function declaration looks like this:
 #my_example_function
 ```
 
-And to close the it off, you end it with `#>`. This token is also used as a return statement. This means that all functions must return some value, no matter what.
-
-The value you wish to return goes immediately after the `#>`.
+To return, use `#>`. The value to return goes immediately after this token. All functions must return some value, no matter what. Use a closing brace to end the function. There is no need to use an opening brace.
 
 An example function could look like:
 ```
 #my_example_function
     int a 2+3
-#> a
+    #> a
+}
 ```
 
 Calling a function is simple. You simply just write the function's name.
 ```
 #my_example_function
     int a 2+3
-#> a
+    #> a
+}
 
 #main
     my_example_function
-#> 0
+    #> 0
+}
 ```
 
 As you can see, you must have a main function.
@@ -90,25 +91,22 @@ The syntax of a conditional is as follows:
 ```
 a == b ?
     // do stuff
-?>
+}
 ```
-In this example, stuff will only be done if a is equal to b.
+In this example, stuff will only be done if a is equal to b. The conditional expressions are just the same as *most* other languages (ahem, lua. Like why ~=? It doesn't make sense).
 
-The conditional expressions are just the same as *most* other languages (ahem, lua. Like why ~=? It doesn't make sense).
-
-The `?` shows that this is a conditional, and `a == b` is the condition. `?>` is used to end a conditional. Note that the token for ending a function is different than the token to end an if statement (a function is `#>`, and a conditional is `?>`).
+The `?` shows that this is a conditional, and `a == b` is the condition. Close the condition with `}`. There is no need to use an opening brace to begin the conditional.
 
 Rc also supports else statements. It's syntax is as follows:
 ```
 a == b ?
     // do stuff
-?> ??
+} ??
     // do stuff if condition is not true
-??>
+}
 ```
 In this example, stuff will be done if a is equal to b. But, if a is *not* equal to b, other stuff will be done.
 
-Else statements start with ending your if statement with `?>`. Then, you begin your else statement with `??`. Notice how if statements start with `?` but else statements start with `??`. To end your else statement, type `??>`.
 <h4>Base Functions</h4>
 
 Base functions (or syscalls) can be easily identified in rc since it starts with a `>`. For example, the performing the `write` syscall looks like this:
