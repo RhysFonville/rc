@@ -107,6 +107,15 @@ a == b ?
 ```
 In this example, stuff will be done if a is equal to b. But, if a is *not* equal to b, other stuff will be done.
 
+If-else statments are also easy and canbe do like so:
+```
+a == b ?
+    // do stuff
+} ?? a > b ?
+    // do stuff if second condition is true
+}
+```
+
 <h4>Base Functions</h4>
 
 Base functions (or syscalls) can be easily identified in rc since it starts with a `>`. For example, the performing the `write` syscall looks like this:

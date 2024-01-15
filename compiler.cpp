@@ -973,7 +973,7 @@ namespace token_function {
 	}
 
 	void else_statement(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_if().type_index+1));
+		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_if().type_index+1));
 		out.insert(out.end()-1, "jmp .IF" + std::to_string(braces::braces.back().type_index) + '\n');
 	}
 	
@@ -1157,11 +1157,11 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("}") {
 				token_function::brace_close(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("?") {
-				token_function::if_statement(tok_it);
-			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("??") {
 				token_function::else_statement(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("?") {
+				token_function::if_statement(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
