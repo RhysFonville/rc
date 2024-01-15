@@ -4,9 +4,10 @@ OBJ = rc.o Token.o
 .PHONY: clean run_asm test bear
 
 rc: compiler.cpp Token.h main.cpp
-	${CC} -Wno-trigraphs -O0 -g -std=c++20 Token.h main.cpp -o rc 
+	${CC} -Wno-trigraphs -g -std=c++20 Token.h main.cpp -o rc 
 
 clean:
+	find . -type f -name 'core' -exec rm -f {} \;
 	find . -type f -name 'a.out' -exec rm -f {} \;
 	find . -type f -name 'rcout.o' -exec rm -f {} \;
 	find . -type f -name 'rcout.s' -exec rm -f {} \;
