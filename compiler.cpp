@@ -130,6 +130,61 @@ struct Register {
 
 using RegisterRef = std::optional<std::reference_wrapper<Register>>; 
 
+struct Brace {
+	enum class State {
+		Open,
+		Close
+	};
+
+	enum class Type {
+		If,
+		Else,
+		Function,
+		General
+	};
+	
+	Brace() { }
+	Brace(State state, Type type, int index, int type_index) : state(state), type(type), type_index(type_index), index(index) { }
+
+	State state;
+	Type type;
+	int type_index = -1;
+	int index = 0;
+};
+
+using BraceRef = std::optional<std::reference_wrapper<Brace>>;
+
+namespace braces {
+	std::vector<Brace> braces = { Brace(Brace::State::Open, Brace::Type::Function, -1, -1) };
+	
+	Brace & get_last_if() {
+		for (Brace &brace : braces | std::views::reverse) {
+			if (brace.type == Brace::Type::If) {
+				return brace;
+			}
+		}
+		return braces.front();
+	}
+	
+	Brace & get_last_index(int index) {
+		for (Brace &brace : braces | std::views::reverse) {
+			if (brace.index == index) {
+				return brace;
+			}
+		}
+		return braces.front();
+	}
+	
+	Brace & get_last_open_index(int index) {
+		for (Brace &brace : braces | std::views::reverse) {
+			if (brace.state == Brace::State::Open && brace.index == index) {
+				return brace;
+			}
+		}
+		return braces.front();
+	}
+};
+
 std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
@@ -808,7 +863,7 @@ namespace token_function {
 	}
 
 	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
-		if (std::ranges::find(out, ".text\n") == out.end()) {
+		if (TEXT_ASM == out.end()) {
 			out.push_back(".text\n");
 		}
 		
@@ -823,6 +878,8 @@ namespace token_function {
 		functions.push_back(func_name);
 		stack_sizes.push_back(0);
 		current_function = func_name;
+		
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Function, braces::braces.back().index+1, -1));
 	}
 	
 	void function_call(TokIt tok_it) {
@@ -847,8 +904,31 @@ namespace token_function {
 		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
 		current_function = "";
 	}
+	
+	int braces_begin_index(bool type = false) {
+		if (braces::braces.back().state == Brace::State::Close) {
+			return braces::braces.back().index;
+		} else {
+			return braces::braces.back().index+1;
+		}
+	}
 
-	void if_statement(TokIt tok_it, int &if_index) {
+	int braces_end_index(bool type = false) {
+		int index = 0;
+		if (braces::braces.back().state == Brace::State::Open) {
+			index = braces::braces.back().index;
+		} else {
+			index = braces::get_last_open_index(braces::braces.back().index-1).index;
+		}
+		Brace last_index = braces::get_last_index(index);
+		if (type) {
+			return last_index.type_index;
+		} else {
+			return last_index.index;
+		}
+	}
+	
+	void if_statement(TokIt tok_it) {
 		std::string rhs = *(tok_it-3);
 		std::string lhs = *(tok_it-1);
 		
@@ -888,21 +968,38 @@ namespace token_function {
 			op = "l";
 		}
 		
-		out.push_back('j' + op + " .IF" + std::to_string(if_index) + '\n');
-		if_index++;
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last_if().type_index+1));
+		out.push_back('j' + op + " .IF" + std::to_string(braces::braces.back().type_index) + '\n');
 	}
 
-	void if_end(TokIt tok_it, int if_index) {
-		out.push_back(".IF" + std::to_string(if_index-1) + ":\n");
+	void else_statement(TokIt tok_it) {
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_if().type_index+1));
+		out.insert(out.end()-1, "jmp .IF" + std::to_string(braces::braces.back().type_index) + '\n');
 	}
 	
-	void else_statement(TokIt tok_it, int &if_index) {
-		out.insert(out.end()-1, "jmp .IF" + std::to_string(if_index) + '\n');
-		if_index++;
+	void brace_open(TokIt tok_it) {
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::General, braces_begin_index(), -1));
 	}
 	
-	void else_end(TokIt tok_it, int if_index) {
-		out.push_back(".IF" + std::to_string(if_index-1) + ":\n");	
+	void if_end(TokIt tok_it) {
+		out.push_back(".IF" + std::to_string(braces_end_index(true)) + ":\n");
+	}
+	
+	void brace_close(TokIt tok_it) {
+		if (braces::braces.size() > 1) {
+			int index = braces_end_index(false);
+			Brace open_brace = braces::get_last_open_index(index);
+			int type_index = -1;
+			if (open_brace.index != -1) {
+				if (open_brace.type == Brace::Type::If || open_brace.type == Brace::Type::Else) {
+					if_end(tok_it);
+					type_index = braces::get_last_if().type_index;
+				}
+				braces::braces.push_back(Brace(Brace::State::Close, open_brace.type, index, type_index));
+				return;
+			}
+		}
+		clog::error("Closing brace unexpected.");
 	}
 	
 	void macro(TokIt tok_it, std::vector<std::string> &lines) {
@@ -971,7 +1068,7 @@ int begin_compile(std::vector<std::string> args) {
 	std::vector<std::string> functions = { };
 	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
-	
+
 	int if_index = 0;
 	int str_index = 0;
 	bool in_quote = false;
@@ -1054,17 +1151,17 @@ int begin_compile(std::vector<std::string> args) {
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("?>") {
-				token_function::if_end(tok_it, if_index);
+			WHILE_US_FIND_TOKEN("{") {
+				token_function::brace_open(tok_it);
 			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("??>") {
-				token_function::else_end(tok_it, if_index);
+			WHILE_US_FIND_TOKEN("}") {
+				token_function::brace_close(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("?") {
-				token_function::if_statement(tok_it, if_index);
+				token_function::if_statement(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("??") {
-				token_function::else_statement(tok_it, if_index);
+				token_function::else_statement(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
