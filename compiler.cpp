@@ -159,7 +159,7 @@ namespace braces {
 	
 	Brace & get_last_if() {
 		for (Brace &brace : braces | std::views::reverse) {
-			if (brace.type == Brace::Type::If) {
+			if (brace.type == Brace::Type::If || brace.type == Brace::Type::Else) {
 				return brace;
 			}
 		}
@@ -1069,7 +1069,6 @@ int begin_compile(std::vector<std::string> args) {
 	std::vector<int> current_function_stack_sizes = { };
 	std::string current_function = "";
 
-	int if_index = 0;
 	int str_index = 0;
 	bool in_quote = false;
 
