@@ -578,16 +578,8 @@ std::string get_mov_instruction(int lhs, int rhs) {
 
 std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	int rhs_size = get_size_of_operand(rhs);
-	int lhs_size;
-	//if (is_dereferenced(rhs)) {
-	//	lhs_size = get_size_of_operand(lhs);
-	//	rhs_size = lhs_size;
-	//} else {
-		lhs_size = get_size_of_operand(lhs, rhs_size);
-	//}
-	
-	//return get_mov_instruction((is_pointer(lhs) ? rhs_size : lhs_size), rhs_size);
-	return get_mov_instruction(/*(lhs.find("(%rip)") != std::string::npos ? rhs_size : lhs_size)*/lhs_size, rhs_size);
+	int lhs_size = get_size_of_operand(lhs, rhs_size);
+	return get_mov_instruction(lhs_size, rhs_size);
 }
 
 std::string mov(const std::string &lhs, const std::string &rhs) {
@@ -626,14 +618,6 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	// This would also be a good time to cast the lhs to the appropriate size.
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
 		unoccupy_if_register(lhs);
-		//if (is_pointer(lhs) && is_pointer(rhs)) {
-		//	RegisterRef reg = get_available_register();
-		//	reg->get().occupied = true;
-		//	out.push_back("movq " + lhs + ", " + reg->get().name_from_size(8) + '\n');
-		//	lhs = reg->get().name_from_size(8);
-		//} else if (is_pointer(lhs) && !is_pointer(rhs)) {
-		//	
-		//} else
 		if (lhs_size == 4 && max_size == 8) { // int -> long
 			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
@@ -706,21 +690,6 @@ namespace token_function {
 			RegisterRef rhs = get_available_register(); // asm rhs (math output)
 			rhs->get().occupied = true;
 			std::string rhs_name =  rhs->get().name_from_size(rhs_size);
-			
-			// I don't remember why I wrote this. That's how you know my code
-			// is well documented and easy to understand. I wrote this last week and already forgot!!
-			
-			/*std::string lhs = *(tok_it-1); // asm lhs (math input)
-			RegisterRef register_ref;
-			if (!is_variable(lhs)) {
-				register_ref = get_available_register();
-				register_ref->get().occupied = true;
-				std::string reg = register_ref->get().name_from_size(rhs_size);
-				out.push_back(get_mov_instruction(rhs_size, rhs_size) + ' ' + set_operand_prefix(lhs) + ", " + reg + '\n');
-			}
-			*/
-
-			// 'rhs' will store result.
 			out.push_back(mov(*(tok_it-1), rhs_name) + '\n');
 			
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
@@ -873,7 +842,7 @@ namespace token_function {
 		out.push_back(func_name + ":\n");
 		out.push_back("pushq %rbp\n");
 		out.push_back("movq %rsp, %rbp\n");
-		out.push_back("subq $16, %rsp\n");
+		//out.push_back("subq $16, %rsp\n");
 
 		functions.push_back(func_name);
 		stack_sizes.push_back(0);
@@ -1140,12 +1109,7 @@ int begin_compile(std::vector<std::string> args) {
 				if (tok_it != _us_ltoks.begin()) {
 					is_pointer = (*(tok_it-1) == "^^");
 				}
-				//if (functions.empty() || current_function.empty()) {
-				//	int ss;
-				//	token_function::variable_declaration(tok_it, "", ss, is_pointer);
-				//} else {
-					token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index], is_pointer);
-				//}
+				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index], is_pointer);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("#>") {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
