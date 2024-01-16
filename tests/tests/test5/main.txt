@@ -1,0 +1,20 @@
+// TEST #4 - POINTERS AND STRINGS
+
+#main
+	int i 45
+	^^int ip &i
+	^ip = 34
+	
+	>w 1 &i 1
+	
+	^^ch hello_world &n"Hello world!"
+	>w 1 hello_world 12
+	
+	>w 1 ip 1
+	
+	i = 10
+	>w 1 ip 1
+	
+	>e 0
+	#> 0
+}

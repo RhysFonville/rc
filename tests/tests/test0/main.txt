@@ -1,0 +1,33 @@
+// TEST #1 - VARIABLES & CONVERSION
+
+#main
+	lng l 323445
+	int i 45392
+	sht s 1233
+	ch  c 34
+
+	int i_overflow 9999999999
+	
+	l = i
+	i = l
+	
+	l = s
+	s = l
+
+	l = c
+	c = l
+	
+	
+	i = s
+	s = i
+	
+	i = c
+	c = i
+
+	
+	s = c
+	c = s
+
+	>e 0
+	#> 0
+}

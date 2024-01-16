@@ -1,0 +1,17 @@
+^^ch print_str
+
+#print
+	^print_str != 0 ?
+		>w 1 print_str 1
+		print_str = print_str+1
+		print
+	}
+	#> 0
+}
+
+#main
+	print_str = &"Hello world!\n"
+	print
+	>e 0
+	#> 0
+}

@@ -1,0 +1,29 @@
+// TEST #2 - FUNCTIONS AND RETURN
+
+int i 0
+
+#add24
+	int ret i+24
+	#> ret
+}
+
+#mult2
+	#> i+i
+}
+
+#add48
+	i = add24
+	int ret mult2
+	#> ret
+}
+
+#main
+	i = add48
+	>w 1 &i 1
+	i = 10
+	>w 1 &i 1
+	mult2
+	
+	>e 0
+	#> 0
+}
