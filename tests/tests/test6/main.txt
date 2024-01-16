@@ -1,3 +1,5 @@
+// TEST #6 - GENERAL TEST
+
 ^^ch print_str
 
 #print
@@ -11,6 +13,10 @@
 
 #main
 	print_str = &"Hello world!\n"
+	print
+	print_str = &"Cool print function, yo! No newline!!"
+	print
+	print_str = &"\n"
 	print
 	>e 0
 	#> 0
