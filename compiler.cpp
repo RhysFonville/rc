@@ -140,7 +140,8 @@ struct Brace {
 		If,
 		Else,
 		Function,
-		General
+		General,
+		While,
 	};
 	
 	Brace() { }
@@ -157,9 +158,11 @@ using BraceRef = std::optional<std::reference_wrapper<Brace>>;
 namespace braces {
 	std::vector<Brace> braces = { Brace(Brace::State::Open, Brace::Type::Function, -1, -1) };
 	
-	Brace & get_last_if() {
+	Brace & get_last(std::vector<Brace::Type> types) {
 		for (Brace &brace : braces | std::views::reverse) {
-			if (brace.type == Brace::Type::If || brace.type == Brace::Type::Else) {
+			bool eq = false;
+			for (Brace::Type type : types) { eq = (brace.type == type); }
+			if (eq) {
 				return brace;
 			}
 		}
@@ -897,10 +900,7 @@ namespace token_function {
 		}
 	}
 	
-	void if_statement(TokIt tok_it) {
-		std::string rhs = *(tok_it-3);
-		std::string lhs = *(tok_it-1);
-		
+	void condition(std::string con, std::string rhs, std::string lhs) {
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
@@ -923,27 +923,36 @@ namespace token_function {
 		);
 
 		std::string op = "";
-		if (*(tok_it-2) == "==") {
+		if (con == "==") {
 			op = "ne";
-		} else if (*(tok_it-2) == "!=") {
+		} else if (con == "!=") {
 			op = "e";
-		} else if (*(tok_it-2) == "<") {
+		} else if (con == "<") {
 			op = "ge";
-		} else if (*(tok_it-2) == "<=") {
+		} else if (con == "<=") {
 			op = "g";
-		} else if (*(tok_it-2) == ">") {
+		} else if (con == ">") {
 			op = "le";
-		} else if (*(tok_it-2)  == ">=") {
+		} else if (con  == ">=") {
 			op = "l";
 		}
 		
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last_if().type_index+1));
 		out.push_back('j' + op + " .IF" + std::to_string(braces::braces.back().type_index) + '\n');
+	}
+	
+	void if_statement(TokIt tok_it) {
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last({ Brace::Type::If }).type_index+1));
+		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2));
 	}
 
 	void else_statement(TokIt tok_it) {
-		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_if().type_index+1));
+		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last({ Brace::Type::If }).type_index+1));
 		out.insert(out.end()-1, "jmp .IF" + std::to_string(braces::braces.back().type_index) + '\n');
+	}
+	
+	void while_loop(TokIt tok_it) {
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last({ Brace::Type::While }).type_index+1));
+		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2));
 	}
 	
 	void brace_open(TokIt tok_it) {
@@ -962,7 +971,7 @@ namespace token_function {
 			if (open_brace.index != -1) {
 				if (open_brace.type == Brace::Type::If || open_brace.type == Brace::Type::Else) {
 					if_end(tok_it);
-					type_index = braces::get_last_if().type_index;
+					type_index = braces::get_last({ Brace::Type::If }).type_index;
 				}
 				braces::braces.push_back(Brace(Brace::State::Close, open_brace.type, index, type_index));
 				return;
@@ -1010,6 +1019,7 @@ namespace token_function {
 		}
 		in_quote = !in_quote;
 	}
+	
 }
 
 int begin_compile(std::vector<std::string> args) {
@@ -1125,6 +1135,9 @@ int begin_compile(std::vector<std::string> args) {
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("?") {
 				token_function::if_statement(tok_it);
+			} WHILE_FIND_TOKEN_END
+			WHILE_US_FIND_TOKEN("*?") {
+				token_function::while_loop(tok_it);
 			} WHILE_FIND_TOKEN_END
 			WHILE_US_FIND_TOKEN("~") {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
