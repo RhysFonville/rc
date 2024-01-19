@@ -199,6 +199,8 @@ std::vector<int> variable_true_pointer_size = { };
 
 std::vector<std::pair<std::string, std::string>> dereferenced_register_variable_correspondant = { };
 
+std::string current_function = "";
+
 std::vector<Register> registers = {
 	Register("rbx","ebx","bx","bh","bl"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
 	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
@@ -861,11 +863,6 @@ namespace token_function {
 	}
 	
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
-		if (tok_it+1 == toks.end()) {
-			clog::error(current_function + " is not returning a value. All functions must return a value.", line_number);
-			return;
-		}
-
 		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
 		std::string ret = "mov" + types::suffixes[type_vec_index];
 		RegisterRef rax = get_register("rax");
@@ -873,10 +870,13 @@ namespace token_function {
 		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
+	}
+	
+	void function_end(TokIt tok_it) {
 		out.push_back(".size " + current_function + ", .-" + current_function + '\n');
 		current_function = "";
 	}
-	
+
 	int braces_begin_index(bool type = false) {
 		if (braces::braces.back().state == Brace::State::Close) {
 			return braces::braces.back().index;
@@ -900,7 +900,7 @@ namespace token_function {
 		}
 	}
 	
-	void condition(std::string con, std::string rhs, std::string lhs) {
+	void condition(std::string rhs, std::string lhs, std::string con, int label) {
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
@@ -937,22 +937,40 @@ namespace token_function {
 			op = "l";
 		}
 		
-		out.push_back('j' + op + " .IF" + std::to_string(braces::braces.back().type_index) + '\n');
+		out.push_back('j' + op + " .L" + std::to_string(label) + '\n');
 	}
 	
 	void if_statement(TokIt tok_it) {
 		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last({ Brace::Type::If }).type_index+1));
-		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2));
+		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2), braces::braces.back().type_index);
 	}
 
 	void else_statement(TokIt tok_it) {
 		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last({ Brace::Type::If }).type_index+1));
-		out.insert(out.end()-1, "jmp .IF" + std::to_string(braces::braces.back().type_index) + '\n');
+		out.insert(out.end()-1, "jmp .L" + std::to_string(braces::braces.back().type_index) + '\n');
 	}
 	
 	void while_loop(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last({ Brace::Type::While }).type_index+1));
-		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2));
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last({ Brace::Type::While }).type_index+2));
+		out.push_back("jmp .L" + std::to_string(braces::braces.back().type_index-1) + '\n');
+		out.push_back(".L" + std::to_string(braces::braces.back().type_index) + ":\n");
+		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2), braces::braces.back().type_index);
+	}
+	
+	void while_loop_end(TokIt tok_it) {	
+		// Move condition from beginning of loop to end
+		
+		// Find boundaries of condition
+		std::vector<std::string> reverse_vec = out;
+		std::ranges::reverse(reverse_vec);
+		std::vector<std::string>::iterator begin = std::ranges::find(reverse_vec, (".L" + std::to_string(braces_end_index(true)) + ":\n"))+1;
+		auto is_end = [](const std::string &str){ return (str[0] == 'j' && str.find(".L") != std::string::npos); };
+		auto end = std::ranges::find_if(begin, out.end(), is_end)+1;
+		
+		out.push_back(".L" + std::to_string(braces_end_index(true)-1) + ":\n");
+		
+		out.insert(out.end(), begin, end);
+		out.erase(begin, end);
 	}
 	
 	void brace_open(TokIt tok_it) {
@@ -969,9 +987,14 @@ namespace token_function {
 			Brace open_brace = braces::get_last_open_index(index);
 			int type_index = -1;
 			if (open_brace.index != -1) {
-				if (open_brace.type == Brace::Type::If || open_brace.type == Brace::Type::Else) {
+				if (open_brace.type == Brace::Type::Function) {
+					function_end(tok_it);
+				} else if (open_brace.type == Brace::Type::If || open_brace.type == Brace::Type::Else) {
 					if_end(tok_it);
 					type_index = braces::get_last({ Brace::Type::If }).type_index;
+				} else if (open_brace.type == Brace::Type::While) {
+					while_loop_end(tok_it);
+					type_index = braces::get_last({ Brace::Type::While }).type_index;
 				}
 				braces::braces.push_back(Brace(Brace::State::Close, open_brace.type, index, type_index));
 				return;
@@ -1046,7 +1069,6 @@ int begin_compile(std::vector<std::string> args) {
 
 	std::vector<std::string> functions = { };
 	std::vector<int> current_function_stack_sizes = { };
-	std::string current_function = "";
 
 	int str_index = 0;
 	bool in_quote = false;
@@ -1159,7 +1181,11 @@ int begin_compile(std::vector<std::string> args) {
 
 	out.insert(out.begin(), ".file \"" + std::string(args[1]) + "\"\n");
 
-	for (const std::string &str : out) {
+	for (std::string &str : out) {
+		if (str.find(':') == std::string::npos && str[0] != '.') {
+			str.insert(str.begin(), '\t');
+		}
+
 		write << str;
 	}
 	
