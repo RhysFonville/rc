@@ -24,17 +24,17 @@ main:
 	syscall
 	movb $48, %bl
 	cmpl %ebx, -4(%rbp)
-	jg .L1
+	jg .L2
 	movl -4(%rbp), %ebx
 	addl $5, %ebx
 	movl %ebx, -4(%rbp)
-	jmp .L2
-.L1:
+	jmp .L3
+.L2:
 	movl $15, -4(%rbp)
 	movl -4(%rbp), %ebx
 	subl $5, %ebx
 	movl %ebx, -4(%rbp)
-.L2:
+.L3:
 	leaq -4(%rbp), %rbx
 	movq $1, %rax
 	movq $1, %rdi
