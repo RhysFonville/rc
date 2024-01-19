@@ -161,7 +161,7 @@ namespace braces {
 	Brace & get_last(std::vector<Brace::Type> types) {
 		for (Brace &brace : braces | std::views::reverse) {
 			bool eq = false;
-			for (Brace::Type type : types) { eq = (brace.type == type); }
+			for (Brace::Type type : types) { eq = (brace.type == type); break; }
 			if (eq) {
 				return brace;
 			}
@@ -171,7 +171,7 @@ namespace braces {
 	
 	Brace & get_last_condition() {
 		return get_last({ Brace::Type::If, Brace::Type::Else, Brace::Type::While });
-}
+	}
 	
 	Brace & get_last_index(int index) {
 		for (Brace &brace : braces | std::views::reverse) {
@@ -1004,7 +1004,7 @@ namespace token_function {
 	}
 	
 	void if_end(TokIt tok_it) {
-		out.push_back(".IF" + std::to_string(braces_end_index(true)) + ":\n");
+		out.push_back(".L" + std::to_string(braces_end_index(true)) + ":\n");
 	}
 	
 	void brace_close(TokIt tok_it) {
