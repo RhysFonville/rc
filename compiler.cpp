@@ -808,33 +808,33 @@ namespace token_function {
 
 	void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
-			out.push_back("movq " + SYS_WRITE + ", %rax" + '\n');
+			out.push_back("movl " + SYS_WRITE + ", %eax" + '\n');
 			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
 			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
 			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
-			equals(*(tok_it+2), "%rdi");
+			equals(*(tok_it+2), "%edi");
 			equals(*(tok_it+3), "%rsi");
-			equals(*(tok_it+4), "%rdx");
+			equals(*(tok_it+4), "%edx");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "r") { // READ
-			out.push_back("movq " + SYS_READ + ", %rax" + '\n');
+			out.push_back("movl " + SYS_READ + ", %eax" + '\n');
 			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
 			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
 			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
-			equals(*(tok_it+2), "%rdi");
-			equals(*(tok_it+3), "%rsi");
-			equals(*(tok_it+4), "%rdx");
+			equals(*(tok_it+2), "%edi");
+			equals(*(tok_it+3), "%esi");
+			equals(*(tok_it+4), "%edx");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "e") { // EXIT
-			out.push_back("movq " + SYS_EXIT + ", %rax" + '\n');
+			out.push_back("movl " + SYS_EXIT + ", %eax" + '\n');
 			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
-			equals(*(tok_it+2), "%rdi");
+			equals(*(tok_it+2), "%edi");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 		}
