@@ -143,11 +143,11 @@ The tests folder includes a `testrc` executable and a directory called `tests` t
 To create a new test, create a directory in the `tests` folder and add the rc program in that new folder. Something like this:
 
 ```
-cd rc/tests/tests // Go into test folder
-mkdir my-test // Create directory for new test
-cd my-test // Go to new directory
-nvim main.txt // Write test, using neovim as an example
-cd ../../.. // Go back to rc folder
-make test // Run test(s)
+cd rc/tests/tests   // Go into test folder
+mkdir my-test       // Create directory for new test
+cd my-test          // Go to new directory
+nvim main.txt       // Write test, using neovim as an example
+cd ../../..         // Go back to rc folder
+make test           // Run test(s)
 ```
 
