@@ -116,6 +116,16 @@ a == b ?
 }
 ```
 
+<h4>While loops</h4>
+
+While loops are defined with the `*?` token and closed off with a curly brace. It looks very similar to an if statement.
+```
+a == b *?
+    // do stuff
+}
+```
+In this example, "// do stuff" will be looped until a == is false (a != b).
+
 <h4>Base Functions</h4>
 
 Base functions (or syscalls) can be easily identified in rc since it starts with a `>`. For example, the performing the `write` syscall looks like this:
@@ -128,4 +138,16 @@ Rc does not support all syscalls. Only sys_write, sys_read, and sys_exit. Their 
 
 <h3>Tests</h3>
 
-The tests folder includes a `testrc` executable and a tests folder that includes the programs to compile and run. Adding a new test program and running `testrc` should run your tests. Or, if you are using my makefile, just run `make test`.
+The tests folder includes a `testrc` executable and a directory called `tests` that includes the programs to compile and run. Adding a new test program and running `testrc` should run your tests. Or, if you are using my makefile, just run `make test`.
+
+To create a new test, create a directory in the `tests` folder and add the rc program in that new folder. Something like this:
+
+```
+cd rc/tests/tests // Go into test folder
+mkdir my-test // Create directory for new test
+cd my-test // Go to new directory
+nvim main.txt // Write test, using neovim as an example
+cd ../../.. // Go back to rc folder
+make test // Run test(s)
+```
+
