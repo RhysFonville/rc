@@ -825,7 +825,7 @@ namespace token_function {
 			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
 			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
 			equals(*(tok_it+2), "%edi");
-			equals(*(tok_it+3), "%esi");
+			equals(*(tok_it+3), "%rsi");
 			equals(*(tok_it+4), "%edx");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
