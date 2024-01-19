@@ -900,7 +900,41 @@ namespace token_function {
 		}
 	}
 	
-	void condition(std::string rhs, std::string lhs, std::string con, int label) {
+	std::string condition_operator_to_asm(std::string op, bool reverse = false) {
+		if (reverse) {
+			if (op == "==") {
+				return "ne";
+			} else if (op == "!=") {
+				return "e";
+			} else if (op == "<") {
+				return "ge";
+			} else if (op == "<=") {
+				return "g";
+			} else if (op == ">") {
+				return "le";
+			} else if (op  == ">=") {
+				return "l";
+			}
+		} else {
+			if (op == "==") {
+				return "e";
+			} else if (op == "!=") {
+				return "ne";
+			} else if (op == "<") {
+				return "l";
+			} else if (op == "<=") {
+				return "le";
+			} else if (op == ">") {
+				return "g";
+			} else if (op  == ">=") {
+				return "ge";
+			}
+		}
+
+		return "";
+	}
+	
+	void conditional(std::string rhs, std::string lhs, std::string con, int label) {
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
@@ -922,27 +956,12 @@ namespace token_function {
 			' ' + set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 		);
 
-		std::string op = "";
-		if (con == "==") {
-			op = "ne";
-		} else if (con == "!=") {
-			op = "e";
-		} else if (con == "<") {
-			op = "ge";
-		} else if (con == "<=") {
-			op = "g";
-		} else if (con == ">") {
-			op = "le";
-		} else if (con  == ">=") {
-			op = "l";
-		}
-		
-		out.push_back('j' + op + " .L" + std::to_string(label) + '\n');
+		out.push_back('j' + con + " .L" + std::to_string(label) + '\n');
 	}
 	
 	void if_statement(TokIt tok_it) {
 		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last({ Brace::Type::If }).type_index+1));
-		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2), braces::braces.back().type_index);
+		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2), true), braces::braces.back().type_index);
 	}
 
 	void else_statement(TokIt tok_it) {
@@ -954,7 +973,7 @@ namespace token_function {
 		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last({ Brace::Type::While }).type_index+2));
 		out.push_back("jmp .L" + std::to_string(braces::braces.back().type_index-1) + '\n');
 		out.push_back(".L" + std::to_string(braces::braces.back().type_index) + ":\n");
-		condition(*(tok_it-3), *(tok_it-1), *(tok_it-2), braces::braces.back().type_index);
+		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2)), braces::braces.back().type_index);
 	}
 	
 	void while_loop_end(TokIt tok_it) {	
