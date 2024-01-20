@@ -987,16 +987,15 @@ namespace token_function {
 		std::vector<std::string> reverse_vec = out;
 		std::ranges::reverse(reverse_vec);
 		std::vector<std::string>::iterator begin = std::ranges::find(reverse_vec, (".L" + std::to_string(braces_end_index(true)) + ":\n"))-1;
-		auto is_end = [](const std::string &str){ return (str[0] == 'j' && str.find(".L") != std::string::npos); };
-		auto end = std::ranges::find_if(reverse_vec.begin(), begin, is_end)-1;
-			
 		auto original_bound_begin = out.end()-from_it(reverse_vec, begin)-1;
-		auto original_bound_end = out.end()-from_it(reverse_vec, end)-1;
+		
+		auto is_end = [](const std::string &str){ return (str[0] == 'j' && str.find(".L") != std::string::npos); };
+		auto end = std::ranges::find_if(original_bound_begin, out.end(), is_end)+1;
 		
 		out.push_back(".L" + std::to_string(braces_end_index(true)-1) + ":\n");
 		
-		out.insert(out.end(), original_bound_begin, original_bound_end);
-		out.erase(original_bound_begin, original_bound_end);
+		out.insert(out.end(), original_bound_begin, end);
+		out.erase(original_bound_begin, end);
 	}
 	
 	void brace_open(TokIt tok_it) {
