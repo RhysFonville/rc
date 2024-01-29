@@ -9,55 +9,6 @@
 #include <ranges>
 #include "Token.h"
 
-#define WHILE_FIND_TOKEN(tok) \
-	tok_it = _ltoks.begin(); \
-	while (true) { \
-		tok_it = remove_constness(_ltoks, find_tok(_ltoks, tok, tok_it)); \
-		if (tok_it != _ltoks.end()) { \
-			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
- 
-#define WHILE_FIND_TOKEN_END \
-		} else { \
-			break; \
-		} \
-		tok_it++; \
-	} \
-
-#define WHILE_US_FIND_TOKEN(tok) \
-	tok_it = _us_ltoks.begin(); \
-	while (true) { \
-		tok_it = remove_constness(_us_ltoks, find_tok(_us_ltoks, tok, tok_it)); \
-		if (tok_it != _us_ltoks.end()) { \
-			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
-
-#define WHILE_FIND_TOKENS(toks) \
-	tok_it = _ltoks.begin(); \
-	while (true) { \
-		tok_it = remove_constness(_ltoks, find_first_tok(_ltoks, toks, tok_it)); \
-		if (tok_it != _ltoks.end()) { \
-			if (print_line_in_asm) { \
-				std::string str = "// "; \
-				for (const std::string &tok : toks) { \
-					str += tok + " | "; \
-				} \
-				str += "on line " + std::to_string(line_number); \
-				out.push_back(str + '\n'); \
-			}
-
-#define WHILE_US_FIND_TOKENS(toks) \
-	tok_it = _us_ltoks.begin(); \
-	while (true) { \
-		tok_it = remove_constness(_us_ltoks, find_first_tok(_us_ltoks, toks, tok_it)); \
-		if (tok_it != _us_ltoks.end()) { \
-			if (print_line_in_asm) { \
-				std::string str = "// "; \
-				for (const std::string &tok : toks) { \
-					str += tok + " | "; \
-				} \
-				str += "on line " + std::to_string(line_number); \
-				out.push_back(str + '\n'); \
-			}
-
 #define DATA_ASM (std::ranges::find(out, ".data\n"))
 #define TEXT_ASM (std::ranges::find(out, ".text\n"))
 
@@ -221,7 +172,6 @@ namespace types {
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
 
 std::vector<std::string> out;
-using uchar = unsigned char;
 
 const char* const ws = " \t\n\r\f\v";
 
@@ -232,6 +182,8 @@ const std::string STDIN     = "$0";
 const std::string STDOUT    = "$1";
 
 size_t line_number = 0;
+
+bool print_line_in_asm = false;
 
 namespace clog {
 	void out(const std::string &str) noexcept {
@@ -245,6 +197,106 @@ namespace clog {
 	}
 	void note(const std::string &str) noexcept {
 		std::cout << "NOTE: " << str << std::endl;
+	}
+}
+
+template <typename T>
+size_t from_it(const std::vector<T> &vec, const typename std::vector<T>::const_iterator &it) {
+	return std::distance(vec.begin(), it);
+}
+
+std::vector<std::string>::const_iterator find_tok(const std::vector<std::string> &toks, const std::string &str,
+				const std::vector<std::string>::const_iterator &begin) {
+	return std::find(begin, toks.end(), str);
+}
+
+std::vector<std::string>::iterator find_tok(std::vector<std::string> &toks, const std::string &str,
+				std::vector<std::string>::iterator &begin) {
+	return std::find(begin, toks.end(), str);
+}
+
+std::vector<std::string>::iterator find_first_tok(std::vector<std::string> &toks, const std::vector<std::string> &toks_to_find,
+				std::vector<std::string>::iterator &begin) {
+	for (auto it = begin; it != toks.end(); it++) {
+		for (const std::string &tok : toks_to_find) {
+			if (*it == tok) return it;
+		}
+	}
+	return toks.end();
+}
+
+template <typename Container, typename ConstIterator>
+typename Container::iterator remove_constness(Container& c, ConstIterator it) {
+    return c.erase(it, it);
+}
+
+void while_find_token(const std::string &tok, int begin, int end, const std::function<void(TokIt)> &func) {
+	TokIt tok_it = _ltoks.begin();
+	while (tok_it < _ltoks.end()) {
+		tok_it = find_tok(_ltoks, tok, tok_it);
+		if (tok_it != _ltoks.end()) {
+			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+			func(tok_it);
+		} else {
+			break;
+		}
+		tok_it++;
+	}
+}
+
+void while_us_find_token(const std::string &tok, int begin, int end, const std::function<void(TokIt)> &func) {
+	TokIt tok_it = _us_ltoks.begin();
+	while (tok_it < _us_ltoks.end()) {
+		tok_it = find_tok(_us_ltoks, tok, tok_it);
+		if (tok_it != _us_ltoks.end()) {
+			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+			func(tok_it);
+		} else {
+			break;
+		}
+		tok_it++;
+	}
+}
+
+void while_find_tokens(const std::vector<std::string> &toks, int begin, int end, const std::function<void(TokIt)> &func) {
+	TokIt tok_it = _ltoks.begin();
+	while (tok_it < _ltoks.end()) {
+		tok_it = find_first_tok(_ltoks, toks, tok_it);
+		if (tok_it != _ltoks.end()) {
+			if (print_line_in_asm) {
+				std::string str = "// ";
+				for (const std::string &tok : toks) {
+					str += tok + " | ";
+				}
+				str += "on line " + std::to_string(line_number);
+				out.push_back(str + '\n');
+			}
+			func(tok_it);
+		} else {
+			break;
+		}
+		tok_it++;
+	}
+}
+
+void while_us_find_tokens(const std::vector<std::string> &toks, int begin, int end, const std::function<void(TokIt)> &func) {
+	TokIt tok_it = _us_ltoks.begin();
+	while (tok_it < _us_ltoks.end()) {
+		tok_it = find_first_tok(_us_ltoks, toks, tok_it);
+		if (tok_it != _us_ltoks.end()) {
+			if (print_line_in_asm) {
+				std::string str = "// ";
+				for (const std::string &tok : toks) {
+					str += tok + " | ";
+				}
+				str += "on line " + std::to_string(line_number);
+				out.push_back(str + '\n');
+			}
+			func(tok_it);
+		} else {
+			break;
+		}
+		tok_it++;
 	}
 }
 
@@ -266,11 +318,6 @@ std::string trim(std::string s, const char* t = ws) {
 		return ltrim(rtrim(s, t), t);
 	else
 		return "";
-}
-
-template <typename T>
-size_t from_it(const std::vector<T> &vec, const typename std::vector<T>::const_iterator &it) {
-	return std::distance(vec.begin(), it);
 }
 
 std::vector<std::string> replace_toks(std::vector<std::string> toks, size_t begin, size_t end, const std::string &str) {
@@ -359,11 +406,6 @@ std::vector<std::string> split(const std::string &str) { // IT WORKS!! WOW!!
 	return ret;
 }
 
-template <typename Container, typename ConstIterator>
-typename Container::iterator remove_constness(Container& c, ConstIterator it) {
-    return c.erase(it, it);
-}
-
 std::vector<std::string> unspaced(const std::vector<std::string> &vec) {
 	std::vector<std::string> ret;
 	for (const std::string &str : vec) {
@@ -371,24 +413,6 @@ std::vector<std::string> unspaced(const std::vector<std::string> &vec) {
 	}
 	return ret;
 }
-
-std::vector<std::string>::const_iterator find_tok(const std::vector<std::string> &ltoks, const std::string &str,
-				const std::vector<std::string>::const_iterator &begin) {
-	return std::find(begin, ltoks.end(), str);
-}
-
-std::vector<std::string>::const_iterator find_first_tok(const std::vector<std::string> &ltoks, const std::vector<std::string> &toks_to_find,
-				const std::vector<std::string>::const_iterator &begin) {
-	
-	for (auto it = begin; it != ltoks.end(); it++) {
-		for (const std::string &tok : toks_to_find) {
-			if (*it == tok) return it;
-		}
-	}
-
-	return ltoks.end();
-}
-
 
 template <typename T>
 size_t index_of(const std::vector<T> &vec, const T &val) {
@@ -706,8 +730,9 @@ namespace token_function {
 				cmd + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] + ' ' +
 				set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 			);
+			//size_t old_it_index = from_it(_us_ltoks, tok_it);
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
-			tok_it--; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
+			tok_it -= 1; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
 			
 			rhs->get().occupied = false;
 			if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
@@ -1070,7 +1095,6 @@ namespace token_function {
 
 int begin_compile(std::vector<std::string> args) {
 	std::string output_dir = "./";
-	bool print_line_in_asm = false;
 	if (args.size() < 2) {
 		clog::error("Must input file to compile.", 0);
 		return 0;
@@ -1098,8 +1122,6 @@ int begin_compile(std::vector<std::string> args) {
 
 	registers.push_back(Register());
 	
-	TokIt tok_it;
-	
 	std::vector<std::string> lines = { };
 	{
 		std::string l;	
@@ -1107,7 +1129,7 @@ int begin_compile(std::vector<std::string> args) {
 			lines.push_back(l);
 		}
 	}
-
+	
 	for (std::string l : lines) {
 		line_number++;
 		l = trim(l);
@@ -1117,27 +1139,27 @@ int begin_compile(std::vector<std::string> args) {
 			
 			//std::ranges::for_each(_us_ltoks,[](auto s){std::cout<<s<<' ';});std::cout<<std::endl; // print all toks
 			
-			WHILE_US_FIND_TOKEN("//") {
+			while_us_find_token("//", 0, 0, [&](TokIt tok_it) {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {
 					_us_ltoks.erase(_us_ltoks.begin()+i);
 				}
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("\"") {
+			});
+			while_us_find_token("\"", 0, 0, [&](TokIt tok_it) {
 				token_function::quote(tok_it, str_index, in_quote);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("#") {
+			});
+			while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(functions) {
+			});
+			while_us_find_tokens(functions, 0, 0, [&](TokIt tok_it) {
 				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
 					if (*(tok_it-1) == "#") {
-						break;
+						return;
 					}
 				}
 				token_function::function_call(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(variable_names) {
+			});
+			while_us_find_tokens(variable_names, 0, 0, [&](TokIt tok_it) {
 				size_t vec_index = index_of(variable_names, *tok_it);
 				if (variable_stack_locations[vec_index] != INT_MAX) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
@@ -1145,54 +1167,54 @@ int begin_compile(std::vector<std::string> args) {
 					*tok_it += "(%rip)";
 					commit(_us_ltoks);
 				}
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("^") {
+			});
+			while_us_find_token("^", 0, 1, [&](TokIt tok_it) {
 				token_function::dereference(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("&") {
+			});
+			while_us_find_token("&", 0, 1, [&](TokIt tok_it) {
 				token_function::address_of(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(math_symbols) {
+			});
+			while_us_find_tokens(math_symbols, 1, 1, [&](TokIt tok_it) {
 				token_function::math(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("=") {
+			});
+			while_us_find_token("=", 1, 1, [&](TokIt tok_it) {
 				token_function::equals(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKENS(types::types) {
+			});
+			while_us_find_tokens(types::types, 0, 1, [&](TokIt tok_it) {
 				size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
 				bool is_pointer = false;
 				if (tok_it != _us_ltoks.begin()) {
 					is_pointer = (*(tok_it-1) == "^^");
 				}
 				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index], is_pointer);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("#>") {
+			});
+			while_us_find_token("#>", 0, 1, [&](TokIt tok_it) {
 				token_function::function_return(tok_it, _us_ltoks, current_function);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("{") {
+			});
+			while_us_find_token("{", 0, 0, [&](TokIt tok_it) {
 				token_function::brace_open(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("}") {
+			});
+			while_us_find_token("}", 0, 0, [&](TokIt tok_it) {
 				token_function::brace_close(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("??") {
+			});
+			while_us_find_token("??", 0, 0, [&](TokIt tok_it) {
 				token_function::else_statement(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("?") {
+			});
+			while_us_find_token("?", 1, 0, [&](TokIt tok_it) {
 				token_function::if_statement(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("*?") {
+			});
+			while_us_find_token("*?", 1, 0, [&](TokIt tok_it) {
 				token_function::while_loop(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("~") {
+			});
+			while_us_find_token("~", 0, 0, [&](TokIt tok_it) {
 				commit(replace_tok(_us_ltoks, tok_it, "rax"));
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN(">") {
+			});
+			while_us_find_token(">", 0, 2, [&](TokIt tok_it) {
 				token_function::base_functions(tok_it);
-			} WHILE_FIND_TOKEN_END
-			WHILE_US_FIND_TOKEN("%") {
+			});
+			while_us_find_token("%", 0, 2, [&](TokIt tok_it) {
 				token_function::macro(tok_it, lines);
-			} WHILE_FIND_TOKEN_END
+			});
 
 			disallowed_toks.clear();
 
