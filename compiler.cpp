@@ -192,8 +192,8 @@ namespace clog {
 	void warn(const std::string &str, bool print_line = true) noexcept {
 		std::cerr << (print_line ? "LINE: " + std::to_string(line_number) : "") << "WARNING: " << str << std::endl;
 	}
-	void error(const std::string &str, bool print_line = true) noexcept {
-		std::cerr << (print_line ? "LINE: " + std::to_string(line_number) : "") << " ERROR: " << str << std::endl;
+	void error(const std::string &str, bool print_line = true) {
+		throw ((print_line ? "LINE: " + std::to_string(line_number) : "") + " ERROR: " + str);
 	}
 	void note(const std::string &str) noexcept {
 		std::cout << "NOTE: " << str << std::endl;
@@ -236,6 +236,7 @@ void while_find_token(const std::string &tok, int begin, int end, const std::fun
 		tok_it = find_tok(_ltoks, tok, tok_it);
 		if (tok_it != _ltoks.end()) {
 			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -250,6 +251,7 @@ void while_us_find_token(const std::string &tok, int begin, int end, const std::
 		tok_it = find_tok(_us_ltoks, tok, tok_it);
 		if (tok_it != _us_ltoks.end()) {
 			if (print_line_in_asm) out.push_back("//" + std::string(tok) + " on line " + std::to_string(line_number) + '\n');
+			if (tok_it-begin < _us_ltoks.begin() || tok_it+end >= _us_ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -271,6 +273,7 @@ void while_find_tokens(const std::vector<std::string> &toks, int begin, int end,
 				str += "on line " + std::to_string(line_number);
 				out.push_back(str + '\n');
 			}
+			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -292,6 +295,7 @@ void while_us_find_tokens(const std::vector<std::string> &toks, int begin, int e
 				str += "on line " + std::to_string(line_number);
 				out.push_back(str + '\n');
 			}
+			if (tok_it-begin < _us_ltoks.begin() || tok_it+end >= _us_ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -1094,6 +1098,8 @@ namespace token_function {
 }
 
 int begin_compile(std::vector<std::string> args) {
+	try {
+	
 	std::string output_dir = "./";
 	if (args.size() < 2) {
 		clog::error("Must input file to compile.", 0);
@@ -1239,6 +1245,11 @@ int begin_compile(std::vector<std::string> args) {
 	
 	system(((std::string)"as " + output_dir + "rcout.s -o " + output_dir + "rcout.o && ld " + output_dir + "rcout.o -e main -o " + output_dir + "a.out && " + output_dir + "a.out").c_str());
 	
+	} catch (std::string &e) {
+		std::cerr << e << std::endl;
+		std::cerr << "Aborting." << std::endl;
+	}
+
 	return 0;
 }
 
