@@ -1033,9 +1033,13 @@ namespace token_function {
 		auto end = std::ranges::find_if(original_bound_begin, out.end(), is_end)+1;
 		
 		out.push_back(".L" + std::to_string(braces_end_index(true)-1) + ":\n");
-		
-		out.insert(out.end(), original_bound_begin, end);
-		out.erase(original_bound_begin, end);
+	
+		size_t begin_i = from_it(out, original_bound_begin);
+		size_t end_i = from_it(out, end);
+		std::vector<std::string> range{};
+		for (auto it = original_bound_begin; it != end; it++) range.push_back(*it);
+		out.insert(out.end(), range.begin(), range.end());
+		out.erase(out.begin()+begin_i, out.begin()+end_i);
 	}
 	
 	void brace_open(TokIt tok_it) {
