@@ -22,10 +22,10 @@ print:
 	movb $0, %r10b
 	cmpb %r10b, (%rbx)
 	je .L0
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq print_str(%rip), %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movq print_str(%rip), %rbx
 	addq $1, %rbx
@@ -54,8 +54,8 @@ main:
 	movq %rbx, print_str(%rip)
 	movl $0, %eax
 	call print
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave

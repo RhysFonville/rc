@@ -13,10 +13,10 @@ main:
 	addl $48, %ebx
 	movb %bl, -5(%rbp)
 	leaq -5(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movl -4(%rbp), %ebx
 	addl $1, %ebx
@@ -27,13 +27,13 @@ main:
 	jl .L1
 	movl $10, -4(%rbp)
 	leaq -4(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave

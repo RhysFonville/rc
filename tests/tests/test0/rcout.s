@@ -36,8 +36,8 @@ main:
 	movw %bx, -14(%rbp)
 	movw -14(%rbp), %bx
 	movb %bl, -15(%rbp)
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave

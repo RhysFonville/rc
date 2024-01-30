@@ -14,31 +14,31 @@ main:
 	movq -12(%rbp), %rbx
 	movl $34, (%rbx)
 	leaq -4(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	leaq .STR0(%rip), %rbx
 	movq %rbx, -20(%rbp)
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq -20(%rbp), %rsi
-	movq $12, %rdx
+	movl $12, %edx
 	syscall
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq -12(%rbp), %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movl $10, -4(%rbp)
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq -12(%rbp), %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave

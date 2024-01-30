@@ -151,3 +151,13 @@ cd ../../..         // Go back to rc folder
 make test           // Run test(s)
 ```
 
+<h3>Hello World!</h3>
+Although there are already simple tests and this README, I believe it would be best to provide a hello world.
+
+```
+#main
+    >w 1 &"Hello world!" 12 // Execute write syscall to stdout of string "Hello world!". Write 12 characters. (Print "Hello world!".)
+    >e 0                    // Exit with code 0
+    #> 0                    // Return 0
+}                           // Technically not needed.
+```

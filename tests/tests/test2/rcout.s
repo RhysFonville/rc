@@ -54,22 +54,22 @@ main:
 	call add48
 	movl %eax, i(%rip)
 	leaq i(%rip), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movl $10, i(%rip)
 	leaq i(%rip), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movl $0, %eax
 	call mult2
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave

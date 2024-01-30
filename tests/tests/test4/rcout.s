@@ -17,10 +17,10 @@ main:
 	movl $49, -4(%rbp)
 .L1:
 	leaq -4(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movb $48, %bl
 	cmpl %ebx, -4(%rbp)
@@ -36,20 +36,20 @@ main:
 	movl %ebx, -4(%rbp)
 .L3:
 	leaq -4(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
 	movl $10, -4(%rbp)
 	leaq -4(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave

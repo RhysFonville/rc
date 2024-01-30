@@ -1,0 +1,33 @@
+// TEST #8 - GENERAL TEST
+
+#main
+	ch nl 10
+	ch run 1
+	ch c 0
+	
+	ch first_iteration 1
+	
+	run != 0 *?
+		>w 1 &"Enter a character: " 19
+		
+		//>r 0 &c 1
+		first_iteration == 1 ?
+			c = 67
+			first_iteration = 0
+		} ??
+			c = 126
+		}
+
+		c != 126 ?
+			c = 1+c
+			>w 1 &"Your new character is: " 23
+			>w 1 &c 1
+			>w 1 &nl 1
+		} ??
+			run = 0
+		}
+	}
+
+	>e 0
+	#> 0
+}

@@ -20,21 +20,19 @@ main:
 	leaq -5(%rbp), %rbx
 	movb $1, %bl
 	addb -6(%rbp), %bl
-	movb %bl, %r10b
-	subb $2, %r10b
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movsbq %r10b, %rdx
+	movsbl %bl, %edx
 	syscall
 	leaq -1(%rbp), %rbx
-	movq $1, %rax
-	movq $1, %rdi
+	movl $1, %eax
+	movl $1, %edi
 	movq %rbx, %rsi
-	movq $1, %rdx
+	movl $1, %edx
 	syscall
-	movq $60, %rax
-	movq $0, %rdi
+	movl $60, %eax
+	movl $0, %edi
 	syscall
 	movb $0, %al
 	leave
