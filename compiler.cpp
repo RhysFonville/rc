@@ -7,6 +7,7 @@
 #include <climits>
 #include <optional>
 #include <ranges>
+#include <utility>
 #include "Token.h"
 
 #define DATA_ASM (std::ranges::find(out, ".data\n"))
@@ -445,6 +446,7 @@ RegisterRef get_available_register() {
 		if (!reg.occupied) return RegisterRef(reg); 
 	}
 
+	clog::error("No registers are available.");
 	return std::nullopt;
 }
 
@@ -535,7 +537,8 @@ int get_size_of_asm_variable(const std::string &str) {
 	} else if (str.find("%rip") != std::string::npos) {
 		return variable_sizes[index_of(variable_names, str.substr(0, str.find('(')))];
 	}
-
+	
+	clog::error("Variable does not exist.");
 	return -1;
 }
 
@@ -547,7 +550,8 @@ int get_size_of_register(const std::string &str) {
 		if (reg.comp_names(reg.names.bh, str)) return 1;
 		if (reg.comp_names(reg.names.bl, str)) return 1;
 	}
-
+	
+	clog::error("Register does not exist.");
 	return -1;
 }
 
@@ -558,6 +562,8 @@ int get_size_of_number(const std::string &str) {
 	if (number < SHRT_MAX) return 2;
 	if (number < INT_MAX) return 4;
 	if (number < LONG_MAX) return 8;
+
+	clog::error("Number out of bounds.");
 	return 0;
 }
 
@@ -581,6 +587,7 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 	} else if (auto it = std::ranges::find(variable_names, str); it != variable_names.end()) {
 		return variable_sizes[variable_index];	
 	} else {
+		clog::error("Invalid operand. Unable to get its size.");
 		return -1;
 	}
 } 
@@ -595,6 +602,7 @@ char size_to_letter(int size) {
 	else if (size == 8)
 		return 'q';
 	
+	clog::error("Invalid register size.");
 	return '\0';
 }
 
@@ -692,7 +700,7 @@ namespace token_function {
 		} else if (is_global_variable(*tok_it)) {
 			var_name = before_parenthesis;
 		} else {
-			clog::error("Dereference: Only pointers can be dereferenced");
+			clog::error("Only pointers can be dereferenced");
 		}
 
 		RegisterRef reg = get_available_register();
@@ -721,6 +729,8 @@ namespace token_function {
 			cmd = "add";
 		} else if (*tok_it == "-") {
 			cmd = "sub";
+		} else {
+			clog::error("Invalid math operator.");
 		}
 		if (cmd == "add" || cmd == "sub") {
 			int rhs_size = get_size_of_operand(*(tok_it-1));
@@ -963,7 +973,8 @@ namespace token_function {
 				return "ge";
 			}
 		}
-
+		
+		clog::error("Invalid condition operator.");
 		return "";
 	}
 	
@@ -1145,14 +1156,14 @@ int begin_compile(std::vector<std::string> args) {
 			
 			//std::ranges::for_each(_us_ltoks,[](auto s){std::cout<<s<<' ';});std::cout<<std::endl; // print all toks
 			
+			while_us_find_token("\"", 0, 0, [&](TokIt tok_it) {
+				token_function::quote(tok_it, str_index, in_quote);
+			});
 			while_us_find_token("//", 0, 0, [&](TokIt tok_it) {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {
 					_us_ltoks.erase(_us_ltoks.begin()+i);
 				}
-			});
-			while_us_find_token("\"", 0, 0, [&](TokIt tok_it) {
-				token_function::quote(tok_it, str_index, in_quote);
 			});
 			while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
