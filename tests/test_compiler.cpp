@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
 			std::cout << "ERROR: Test #" << std::to_string(i) << " did not work. Message: " << e.what() << std::endl;
 		}
 
-		std::cout << "+=========================================================+" << std::endl;
+		std::cout << "+=======================================================+" << std::endl;
 	}
 }
 
