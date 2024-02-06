@@ -110,10 +110,11 @@ using BraceRef = std::optional<std::reference_wrapper<Brace>>;
 namespace braces {
 	std::vector<Brace> braces = { Brace(Brace::State::Open, Brace::Type::Function, -1, -1) };
 	
-	Brace & get_last(std::vector<Brace::Type> types) {
+	Brace & get_last(std::vector<Brace::Type> types, bool open = false) {
 		for (Brace &brace : braces | std::views::reverse) {
 			bool eq = false;
 			for (Brace::Type type : types) { eq = (brace.type == type); if (eq) break; }
+			if (open) eq = brace.state == Brace::State::Open;
 			if (eq) {
 				return brace;
 			}
@@ -121,8 +122,8 @@ namespace braces {
 		return braces.front();
 	}
 	
-	Brace & get_last_condition() {
-		return get_last({ Brace::Type::If, Brace::Type::Else, Brace::Type::While });
+	Brace & get_last_condition(bool open = false) {
+		return get_last({ Brace::Type::If, Brace::Type::Else, Brace::Type::While }, open);
 	}
 	
 	Brace & get_last_index(int index) {
@@ -1004,17 +1005,17 @@ namespace token_function {
 	}
 	
 	void if_statement(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last_condition().type_index+1));
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last_condition(true).type_index+1));
 		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2), true), braces::braces.back().type_index);
 	}
 
 	void else_statement(TokIt tok_it) {
-		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_condition().type_index+1));
+		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_condition(true).type_index+1));
 		out.insert(out.end()-1, "jmp .L" + std::to_string(braces::braces.back().type_index) + '\n');
 	}
 	
 	void while_loop(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last_condition().type_index+2));
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last_condition(true).type_index+2));
 		out.push_back("jmp .L" + std::to_string(braces::braces.back().type_index-1) + '\n');
 		out.push_back(".L" + std::to_string(braces::braces.back().type_index) + ":\n");
 		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2)), braces::braces.back().type_index);

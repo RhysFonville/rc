@@ -1,0 +1,29 @@
+// TEST #9 - GENERAL TEST
+
+#main
+	ch c 42
+	ch nl 10
+
+	int i 1
+	int j 1
+	i < 10 *?
+		j = 0
+		j < i *?
+			>w 1 &c 1
+			j = j + 1
+		}
+		>w 1 &nl 1
+		i = i + 1
+	}
+	i > 0 *?
+		j = 0
+		j < i *?
+			>w 1 &c 1
+			j = j + 1
+		}
+		>w 1 &nl 1
+		i = i - 1
+	}
+	>e 0
+	#> 0
+}
