@@ -143,16 +143,92 @@ namespace braces {
 		}
 		return braces.front();
 	}
+	
+	int braces_begin_index(bool type = false) {
+		if (braces::braces.back().state == Brace::State::Close) {
+			return braces::braces.back().index;
+		} else {
+			return braces::braces.back().index+1;
+		}
+	}
+
+	int braces_end_index(bool type = false) {
+		int index = 0;
+		if (braces::braces.back().state == Brace::State::Open) {
+			index = braces::braces.back().index;
+		} else {
+			index = braces::get_last_open_index(braces::braces.back().index-1).index;
+		}
+		Brace last_index = braces::get_last_index(index);
+		if (type) {
+			return last_index.type_index;
+		} else {
+			return last_index.index;
+		}
+	}
 };
 
 std::vector<std::string> _ltoks;
 std::vector<std::string> _us_ltoks;
 
-std::vector<std::string> variable_names = { };
-std::vector<int> variable_sizes = { };
-std::vector<int> variable_stack_locations = { };
-std::vector<bool> variable_is_pointer = { };
-std::vector<int> variable_true_pointer_size = { };
+struct Variable {
+	std::string name;
+	int size;
+	int stack_location;
+	bool is_pointer;
+	int true_pointer_size;
+	int braces_index;
+};
+
+std::vector<Variable> variables;
+
+std::vector<std::string> variable_names() {
+	std::vector<std::string> names{};
+	for (Variable &var : variables) {
+		names.push_back(var.name);
+	}
+	return names;
+}
+
+std::vector<int> variable_sizes() {
+	std::vector<int> sizes{};
+	for (Variable &var : variables) {
+		sizes.push_back(var.size);
+	}
+	return sizes;
+}
+
+std::vector<int> variable_stack_locations() {
+	std::vector<int> stack_locations{};
+	for (Variable &var : variables) {
+		stack_locations.push_back(var.stack_location);
+	}
+	return stack_locations;
+}
+
+std::vector<bool> variable_is_pointer() {
+	std::vector<bool> is_pointers{};
+	for (Variable &var : variables) {
+		is_pointers.push_back(var.is_pointer);
+	}
+	return is_pointers;
+}
+
+std::vector<int> variable_true_pointer_size() {
+	std::vector<int> true_pointer_sizes{};
+	for (Variable &var : variables) {
+		true_pointer_sizes.push_back(var.true_pointer_size);
+	}
+	return true_pointer_sizes;
+}
+
+std::vector<int> variable_braces_index() {
+	std::vector<int> braces_indices{};
+	for (Variable &var : variables) {
+		braces_indices.push_back(var.braces_index);
+	}
+	return braces_indices;
+}
 
 std::vector<std::pair<std::string, std::string>> dereferenced_register_variable_correspondant = { };
 
@@ -532,11 +608,11 @@ std::string set_operand_prefix(std::string str) {
 int get_size_of_asm_variable(const std::string &str) {
 	if (str.find("%rbp") != std::string::npos) {
 		int stack_offset = std::stoi(str.substr(1, str.find('(')-1));
-		int var_vec_index = index_of(variable_stack_locations, -stack_offset);
+		int var_vec_index = index_of(variable_stack_locations(), -stack_offset);
 		
-		return variable_sizes[var_vec_index];
+		return variables[var_vec_index].size;
 	} else if (str.find("%rip") != std::string::npos) {
-		return variable_sizes[index_of(variable_names, str.substr(0, str.find('(')))];
+		return variables[index_of(variable_names(), str.substr(0, str.find('(')))].size;
 	}
 	
 	clog::error("Variable does not exist.");
@@ -569,15 +645,16 @@ int get_size_of_number(const std::string &str) {
 }
 
 int get_size_of_operand(std::string str, int number_default = -1) {
-	int variable_index = index_of(variable_names, str);
+	auto names = variable_names();
+	int variable_index = index_of(names, str);
 	if (is_dereferenced(str)) {
 		str.erase(str.begin());
 		str.pop_back();
 		if (RegisterRef reg = get_register(str); reg.has_value()) {
 			auto corresponding_variable_it = std::ranges::find_if(dereferenced_register_variable_correspondant, [&](auto p){ return (p.first == str); });
-			variable_index = index_of(variable_names, corresponding_variable_it->second);
+			variable_index = index_of(names, corresponding_variable_it->second);
 		}
-		return variable_true_pointer_size[variable_index];
+		return variables[variable_index].true_pointer_size;
 	} if (is_variable(str)) {
 		return get_size_of_asm_variable(str);
 	} else if (is_number(str)) {
@@ -585,8 +662,8 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 		return get_size_of_number(str);
 	} else if (RegisterRef reg = get_register(str); reg.has_value()) {
 		return get_size_of_register(str);
-	} else if (auto it = std::ranges::find(variable_names, str); it != variable_names.end()) {
-		return variable_sizes[variable_index];	
+	} else if (auto it = std::ranges::find(names, str); it != names.end()) {
+		return variables[variable_index].size;
 	} else {
 		clog::error("Invalid operand. Unable to get its size.");
 		return -1;
@@ -697,7 +774,7 @@ namespace token_function {
 		std::string var_name = "";
 		std::string before_parenthesis = tok_it->substr(0, tok_it->find('('));
 		if (is_stack_variable(*tok_it)) {
-			var_name = variable_names[index_of(variable_stack_locations, std::stoi(before_parenthesis))];
+			var_name = variables[index_of(variable_stack_locations(), std::stoi(before_parenthesis))].name;
 		} else if (is_global_variable(*tok_it)) {
 			var_name = before_parenthesis;
 		} else {
@@ -793,8 +870,8 @@ namespace token_function {
 		
 		if (is_pointer) {
 			variable_declaration("lng", name, value, current_function, current_stack_size, false);
-			variable_is_pointer.back() = true;
-			variable_true_pointer_size.back() = types::sizes[type_vec_index];
+			variables.back().is_pointer = true;
+			variables.back().true_pointer_size = types::sizes[type_vec_index];
 		} else if (current_function.empty()) {
 			out.insert(DATA_ASM+1, ".globl " + name + '\n');
 			out.insert(DATA_ASM+2, ".align 8\n");
@@ -804,18 +881,10 @@ namespace token_function {
 			
 			out.insert(DATA_ASM+6, types::asm_types[type_vec_index] + ' ' + value + '\n');
 			
-			variable_names.push_back(name);
-			variable_sizes.push_back(types::sizes[type_vec_index]);
-			variable_stack_locations.push_back(INT_MAX);
-			variable_is_pointer.push_back(false);
-			variable_true_pointer_size.push_back(-1);
+			variables.push_back(Variable{name, types::sizes[type_vec_index], INT_MAX, false, -1, braces::braces_end_index()});
 		} else {
 			current_stack_size += types::sizes[type_vec_index];
-			variable_names.push_back(name);
-			variable_sizes.push_back(types::sizes[type_vec_index]);
-			variable_stack_locations.push_back(-current_stack_size);
-			variable_is_pointer.push_back(false);
-			variable_true_pointer_size.push_back(-1);
+			variables.push_back(Variable{name, types::sizes[type_vec_index], -current_stack_size, false, -1, braces::braces_end_index()});
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
 			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
 			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
@@ -921,29 +990,6 @@ namespace token_function {
 		current_function = "";
 	}
 
-	int braces_begin_index(bool type = false) {
-		if (braces::braces.back().state == Brace::State::Close) {
-			return braces::braces.back().index;
-		} else {
-			return braces::braces.back().index+1;
-		}
-	}
-
-	int braces_end_index(bool type = false) {
-		int index = 0;
-		if (braces::braces.back().state == Brace::State::Open) {
-			index = braces::braces.back().index;
-		} else {
-			index = braces::get_last_open_index(braces::braces.back().index-1).index;
-		}
-		Brace last_index = braces::get_last_index(index);
-		if (type) {
-			return last_index.type_index;
-		} else {
-			return last_index.index;
-		}
-	}
-	
 	std::string condition_operator_to_asm(std::string op, bool reverse = false) {
 		if (reverse) {
 			if (op == "==") {
@@ -1005,17 +1051,17 @@ namespace token_function {
 	}
 	
 	void if_statement(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces_begin_index(), braces::get_last_condition(true).type_index+1));
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces::braces_begin_index(), braces::get_last_condition(true).type_index+1));
 		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2), true), braces::braces.back().type_index);
 	}
 
 	void else_statement(TokIt tok_it) {
-		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces_begin_index(), braces::get_last_condition(true).type_index+1));
+		if (tok_it+1 == _us_ltoks.end() || _us_ltoks.back() != "?") braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::Else, braces::braces_begin_index(), braces::get_last_condition(true).type_index+1));
 		out.insert(out.end()-1, "jmp .L" + std::to_string(braces::braces.back().type_index) + '\n');
 	}
 	
 	void while_loop(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces_begin_index(), braces::get_last_condition(true).type_index+2));
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces::braces_begin_index(), braces::get_last_condition(true).type_index+2));
 		out.push_back("jmp .L" + std::to_string(braces::braces.back().type_index-1) + '\n');
 		out.push_back(".L" + std::to_string(braces::braces.back().type_index) + ":\n");
 		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2)), braces::braces.back().type_index);
@@ -1027,13 +1073,13 @@ namespace token_function {
 		// Find boundaries of condition
 		std::vector<std::string> reverse_vec = out;
 		std::ranges::reverse(reverse_vec);
-		std::vector<std::string>::iterator begin = std::ranges::find(reverse_vec, (".L" + std::to_string(braces_end_index(true)) + ":\n"))-1;
+		std::vector<std::string>::iterator begin = std::ranges::find(reverse_vec, (".L" + std::to_string(braces::braces_end_index(true)) + ":\n"))-1;
 		auto original_bound_begin = out.end()-from_it(reverse_vec, begin)-1;
 		
 		auto is_end = [](const std::string &str){ return (str[0] == 'j' && str.find(".L") != std::string::npos); };
 		auto end = std::ranges::find_if(original_bound_begin, out.end(), is_end)+1;
 		
-		out.push_back(".L" + std::to_string(braces_end_index(true)-1) + ":\n");
+		out.push_back(".L" + std::to_string(braces::braces_end_index(true)-1) + ":\n");
 	
 		size_t begin_i = from_it(out, original_bound_begin);
 		size_t end_i = from_it(out, end);
@@ -1044,16 +1090,16 @@ namespace token_function {
 	}
 	
 	void brace_open(TokIt tok_it) {
-		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::General, braces_begin_index(), -1));
+		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::General, braces::braces_begin_index(), -1));
 	}
 	
 	void if_end(TokIt tok_it) {
-		out.push_back(".L" + std::to_string(braces_end_index(true)) + ":\n");
+		out.push_back(".L" + std::to_string(braces::braces_end_index(true)) + ":\n");
 	}
 	
 	void brace_close(TokIt tok_it) {
 		if (braces::braces.size() > 1) {
-			int index = braces_end_index(false);
+			int index = braces::braces_end_index(false);
 			Brace open_brace = braces::get_last_open_index(index);
 			int type_index = -1;
 			if (open_brace.index != -1) {
@@ -1065,6 +1111,13 @@ namespace token_function {
 					while_loop_end(tok_it);
 				}
 				braces::braces.push_back(Brace(Brace::State::Close, open_brace.type, index, open_brace.type_index));
+				
+				for (int i = 0; i < variables.size(); i++) {
+					if (variables[i].braces_index == index) {
+						variables.erase(variables.begin()+index);
+					}
+				}
+				
 				return;
 			}
 		}
@@ -1103,9 +1156,7 @@ namespace token_function {
 			
 			out.insert(DATA_ASM+2, str + ' ' + combine_toks(tok_it-2, tok_it+1) + std::string(1, '\n'));
 			commit(replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it, ".STR" + std::to_string(str_index)));
-			variable_names.push_back(".STR" + std::to_string(str_index));
-			variable_sizes.push_back(8);
-			variable_stack_locations.push_back(INT_MAX);
+			variables.push_back(Variable{".STR" + std::to_string(str_index), 8, INT_MAX, false, -1, braces::braces_end_index()});
 			str_index++;
 		}
 		in_quote = !in_quote;
@@ -1181,10 +1232,10 @@ int begin_compile(std::vector<std::string> args) {
 				}
 				token_function::function_call(tok_it);
 			});
-			while_us_find_tokens(variable_names, 0, 0, [&](TokIt tok_it) {
-				size_t vec_index = index_of(variable_names, *tok_it);
-				if (variable_stack_locations[vec_index] != INT_MAX) {
-					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations[vec_index]) + "(%rbp)"));
+			while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
+				size_t vec_index = index_of(variable_names(), *tok_it);
+				if (variable_stack_locations()[vec_index] != INT_MAX) {
+					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)"));
 				} else {
 					*tok_it += "(%rip)";
 					commit(_us_ltoks);
