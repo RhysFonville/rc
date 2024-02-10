@@ -1113,8 +1113,9 @@ namespace token_function {
 				braces::braces.push_back(Brace(Brace::State::Close, open_brace.type, index, open_brace.type_index));
 				
 				for (int i = 0; i < variables.size(); i++) {
+					//for (int i = from_it(braces::braces, std::find(braces::braces.rbegin(), braces::braces.rend(), open_brace).base()); i < braces::braces.size(); i++) {
 					if (variables[i].braces_index == index) {
-						variables.erase(variables.begin()+index);
+						variables.erase(variables.begin()+i);
 					}
 				}
 				

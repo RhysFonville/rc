@@ -9,7 +9,6 @@ main:
 	movb $42, -1(%rbp)
 	movb $10, -2(%rbp)
 	movl $1, -6(%rbp)
-	movl $1, -10(%rbp)
 	jmp .L0
 .L1:
 	movl $0, -10(%rbp)
@@ -43,7 +42,7 @@ main:
 	jl .L1
 	jmp .L4
 .L5:
-	movl $0, -10(%rbp)
+	movl $0, -14(%rbp)
 	jmp .L6
 .L7:
 	leaq -1(%rbp), %rbx
@@ -52,12 +51,12 @@ main:
 	movq %rbx, %rsi
 	movl $1, %edx
 	syscall
-	movl -10(%rbp), %ebx
+	movl -14(%rbp), %ebx
 	addl $1, %ebx
-	movl %ebx, -10(%rbp)
+	movl %ebx, -14(%rbp)
 .L6:
 	movl -6(%rbp), %ebx
-	cmpl %ebx, -10(%rbp)
+	cmpl %ebx, -14(%rbp)
 	jl .L7
 	leaq -2(%rbp), %rbx
 	movl $1, %eax
