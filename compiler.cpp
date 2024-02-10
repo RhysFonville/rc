@@ -1233,6 +1233,13 @@ int begin_compile(std::vector<std::string> args) {
 				token_function::function_call(tok_it);
 			});
 			while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
+				if (tok_it != _us_ltoks.begin()) {
+					if (std::ranges::find(types::types, *(tok_it-1)) != types::types.end()) {
+						clog::error("Cannot define variable. Variable of this name already exists.");
+						return;
+					}
+				}
+		
 				size_t vec_index = index_of(variable_names(), *tok_it);
 				if (variable_stack_locations()[vec_index] != INT_MAX) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)"));
