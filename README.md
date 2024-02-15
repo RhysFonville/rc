@@ -21,6 +21,13 @@ rc/rc mycode.txt
 
 <h3>Syntax of the language</h3>
 
+<h4>Preprocessor macros</h4>
+You can include another file's code using the `inc` macro. It is used like this:
+```
+%inc "hello.txt"
+```
+The `%` token represents a macro, like `#` in C and C++. `inc` is for including, like `include` in C and C++. And `"hello.txt"` is the file to include.
+
 <h4>Variables</h4>
 
 The types include:
