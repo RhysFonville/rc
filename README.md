@@ -22,6 +22,7 @@ rc/rc mycode.txt
 <h3>Syntax of the language</h3>
 
 <h4>Preprocessor macros</h4>
+
 You can include another file's code using the `inc` macro. It is used like this:
 ```
 %inc "hello.txt"
