@@ -932,6 +932,12 @@ int begin_compile(std::vector<std::string> args) {
 			}
 		});
 		while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
+			if (tok_it != _us_ltoks.begin()) {
+				if (std::ranges::find(functions, *(tok_it+1)) != functions.end()) {
+					clog::error("Cannot declare function. Function of this name already exists.");
+					return;
+				}
+			}
 			token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
 		});
 		while_us_find_tokens(functions, 0, 0, [&](TokIt tok_it) {
