@@ -3,7 +3,7 @@ OBJ = rc.o Token.o
 
 .PHONY: clean run_asm test bear
 
-rc: compiler.cpp Token.h main.cpp
+rc: preprocessor.cpp compiler.cpp util.h Token.h main.cpp
 	${CC} -Wno-trigraphs -g -std=c++20 Token.h main.cpp -o rc 
 
 clean:

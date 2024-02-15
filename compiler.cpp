@@ -8,8 +8,7 @@
 #include <optional>
 #include <ranges>
 #include <utility>
-#include "Token.h"
-#include "util.h"
+#include "preprocessor.cpp" // Including in here stops weird redefinition errors for util.h
 
 #define DATA_ASM (std::ranges::find(out, ".data\n"))
 #define TEXT_ASM (std::ranges::find(out, ".text\n"))
@@ -243,7 +242,7 @@ namespace types {
 	const std::vector<std::string> suffixes = { "l", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
 };
 
-const std::vector<std::string> math_symbols = { "*", "/", "+", "-", "%" };
+const std::vector<std::string> math_symbols = { "*", "/", "+", "-" };
 
 std::vector<std::string> out;
 
@@ -854,7 +853,7 @@ namespace token_function {
 				
 				for (int i = 0; i < variables.size(); i++) {
 					//for (int i = from_it(braces::braces, std::find(braces::braces.rbegin(), braces::braces.rend(), open_brace).base()); i < braces::braces.size(); i++) {
-					if (variables[i].braces_index == index) {
+					if (variables[i].braces_index == index && variables[i].stack_location < 0) {
 						variables.erase(variables.begin()+i);
 					}
 				}
@@ -863,23 +862,6 @@ namespace token_function {
 			}
 		}
 		clog::error("Closing brace unexpected.");
-	}
-	
-	void macro(TokIt tok_it, std::vector<std::string> &lines) {
-		if (*(tok_it+1) == "inc") {
-			std::ifstream in(*(tok_it+2));
-			
-			std::vector<std::string> inc_lines = { };
-			std::string l;
-			while (std::getline(in, l)) {
-				inc_lines.push_back(l);
-			}
-			
-			std::cout << *(tok_it+2) << std::endl;
-			lines.insert(lines.begin()+line_number+1, inc_lines.begin(), inc_lines.end());
-			
-			//out.push_back(".include " + combine_toks(tok_it+2, _us_ltoks.end()) + '\n');
-		}
 	}
 	
 	void quote(TokIt tok_it, int &str_index, bool &in_quote) {
@@ -931,6 +913,7 @@ int begin_compile(std::vector<std::string> args) {
 
 	registers.push_back(Register());	
 	
+	line_number = 0;
 	for (std::string l : lines) {
 		line_number++;
 		l = trim(l);
@@ -1033,7 +1016,6 @@ int begin_compile(std::vector<std::string> args) {
 		write << str;
 	}
 	
-	read.close();
 	write.close();
 	
 	system(((std::string)"as " + output_dir + "rcout.s -o " + output_dir + "rcout.o && ld " + output_dir + "rcout.o -e main -o " + output_dir + "a.out && " + output_dir + "a.out").c_str());
