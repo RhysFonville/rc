@@ -16,16 +16,14 @@ namespace token_function {
 				inc_lines.push_back(l);
 			}
 			
-			lines.insert(lines.begin()+line_number+1, inc_lines.begin(), inc_lines.end());
+			lines.insert(lines.begin()+line_number, inc_lines.begin(), inc_lines.end());
 		}
 	}
 };
 
 
 void begin_preprocessing() {
-	int l_index = 0;
-	std::vector<std::string> lines_copy{lines};
-	for (std::string l : lines_copy) {
+	for (std::string l : lines) {
 		line_number++;
 		l = trim(l);
 		_ltoks = split(l);
@@ -34,11 +32,12 @@ void begin_preprocessing() {
 		if (!l.empty()) {
 			while_us_find_token("%", 0, 3, [&](TokIt tok_it) {
 				token_function::macro(tok_it);
-				lines.erase(lines.begin()+l_index);
+				lines.erase(lines.begin()+line_number-1);
+				line_number--;
 			});
 	  	} else {
-	  		lines.erase(lines.begin()+l_index);
+	  		lines.erase(lines.begin()+line_number-1);
+			line_number--;
 	  	}
-		l_index++;
 	}
 }
