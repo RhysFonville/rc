@@ -23,13 +23,12 @@ namespace token_function {
 
 
 void begin_preprocessing() {
-	for (std::string l : lines) {
-		line_number++;
-		l = trim(l);
-		_ltoks = split(l);
+	for (; line_number-1 < lines.size(); line_number++) {
+		lines[line_number-1] = trim(lines[line_number-1]);
+		_ltoks = split(lines[line_number-1]);
 		_us_ltoks = unspaced(_ltoks);
 		
-		if (!l.empty()) {
+		if (!lines[line_number-1].empty()) {
 			while_us_find_token("%", 0, 3, [&](TokIt tok_it) {
 				token_function::macro(tok_it);
 				lines.erase(lines.begin()+line_number-1);

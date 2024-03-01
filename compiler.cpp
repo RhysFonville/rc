@@ -399,7 +399,6 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 	} else if (auto it = std::ranges::find(names, str); it != names.end()) {
 		return variables[variable_index].size;
 	} else {
-		clog::error("Invalid operand. Unable to get its size.");
 		return -1;
 	}
 } 
@@ -413,8 +412,8 @@ char size_to_letter(int size) {
 		return 'l';
 	else if (size == 8)
 		return 'q';
-	
-	clog::error("Invalid register size.");
+	if (size != -1)
+		clog::error("Invalid register size.");
 	return '\0';
 }
 
