@@ -692,6 +692,11 @@ namespace token_function {
 			out.push_back(".text\n");
 		}
 		
+		std::vector<std::string> attributes{};
+		std::copy(_us_ltoks.begin(), tok_it, attributes.begin());
+		
+		
+		
 		std::string func_name = *(tok_it+1);
 		out.push_back(".globl " + func_name + '\n');
 		out.push_back(".type " + func_name + ", @function\n");
@@ -807,7 +812,8 @@ namespace token_function {
 	
 	void while_loop_end(TokIt tok_it) {	
 		// Move condition from beginning of loop to end
-		
+		// This is the worst code I've ever written in my life
+
 		// Find boundaries of condition
 		std::vector<std::string> reverse_vec = out;
 		std::ranges::reverse(reverse_vec);

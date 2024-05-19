@@ -1,7 +1,6 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <ranges>
 #include <iostream>
 #include "Token.h"
 
