@@ -45,6 +45,8 @@ int i 35
 ```
 This declares an integer named `i` with an initial value of 35. You are not required to give an initial value.
 
+Place type qualifiers in front of the type. like `const ^^int p &x`.
+
 <h4>Pointers</h4>
 
 Defining a pointer looks something like this:
