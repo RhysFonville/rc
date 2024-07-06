@@ -166,6 +166,47 @@ namespace braces {
 	}
 };
 
+bool is_number(const std::string &s) {
+    std::string::const_iterator it = s.begin();
+    while (it != s.end() && (std::isdigit(*it) || *it == '-')) ++it;
+    return !s.empty() && it == s.end();
+}
+
+bool is_stack_variable(const std::string &str) {
+	// ex of variable: -4(%rbp)
+	if (str.find("%rbp") != std::string::npos) {
+		size_t parenthesis = str.find('(');
+		if (parenthesis != -1) {
+			std::string num_before = str.substr(0, parenthesis);
+			if (is_number(num_before)) {
+				if (std::stoi(num_before) < 0) {
+					std::string reg = str.substr(parenthesis, str.size()-parenthesis);
+					if (reg == "(%rbp)") {
+						return true;
+					}
+				}
+			}
+		}
+	}
+	
+	return false;
+}
+
+bool is_global_variable(const std::string &str) {
+	if (str.find("%rip") != std::string::npos) {
+		return true;
+	}
+	return false;
+}
+
+bool is_variable(const std::string &str) {
+	return (is_stack_variable(str) || is_global_variable(str));
+}
+
+bool is_dereferenced(const std::string &str) {
+	return (str.front() == '(' && str.back() == ')');
+}
+
 struct Variable {
 	std::string name;
 	int size;
@@ -173,9 +214,12 @@ struct Variable {
 	bool is_pointer;
 	int true_pointer_size;
 	int braces_index;
+	std::vector<std::string> type_qualifiers;
 };
 
 std::vector<Variable> variables;
+
+std::vector<std::pair<std::string, std::string>> dereferenced_register_variable_correspondant = { };
 
 std::vector<std::string> variable_names() {
 	std::vector<std::string> names{};
@@ -225,7 +269,65 @@ std::vector<int> variable_braces_index() {
 	return braces_indices;
 }
 
-std::vector<std::pair<std::string, std::string>> dereferenced_register_variable_correspondant = { };
+std::vector<std::vector<std::string>> variable_type_qualifiers() {
+	std::vector<std::vector<std::string>> type_qualifiers{};
+	for (Variable &var : variables) {
+		type_qualifiers.push_back(var.type_qualifiers);
+	}
+	return type_qualifiers;
+}
+
+std::optional<std::reference_wrapper<Variable>> get_variable_by_name(const std::string &name) {
+	if (!is_variable(name)) {
+		return std::nullopt;
+	}
+
+	for (Variable &var : variables) {
+		if (var.name == name) return std::optional<std::reference_wrapper<Variable>>{var};
+	}
+
+	return std::nullopt;
+}
+
+std::optional<std::reference_wrapper<Variable>> get_variable_by_asm(const std::string &str) {
+	if (!is_variable(str) && !is_dereferenced(str)) {
+		return std::nullopt;
+	}
+
+	if (is_dereferenced(str)) {
+		for (std::pair<std::string, std::string> reg_var : dereferenced_register_variable_correspondant) {
+			if (reg_var.first == str.substr(1, str.size()-2)) {
+				for (Variable &var : variables) {
+					if (var.name == reg_var.second) return std::optional<std::reference_wrapper<Variable>>{var};
+				}
+			}
+		}
+	}
+
+	for (Variable &var : variables) {
+		std::string before_parenthesis = str.substr(0, str.find('('));
+		if (is_global_variable(str)) {
+			if (var.name == before_parenthesis) return std::optional<std::reference_wrapper<Variable>>{var};
+		} else if (is_stack_variable(str)) {
+			if (var.stack_location == std::stoi(before_parenthesis)) return std::optional<std::reference_wrapper<Variable>>{var};
+		}
+	}
+
+	return std::nullopt;
+}
+
+std::optional<std::reference_wrapper<Variable>> get_variable_by_asm_or_name(const std::string &str) {
+	std::optional<std::reference_wrapper<Variable>> name = get_variable_by_name(str);
+	std::optional<std::reference_wrapper<Variable>> asm_var = get_variable_by_asm(str);
+	
+	if (name.has_value()) {
+		return name;
+	} else if (asm_var.has_value()) {
+		return asm_var;
+	} else {
+		return std::nullopt;
+	}
+}
 
 std::string current_function = "";
 
@@ -284,47 +386,6 @@ std::string get_string_literal(const std::vector<std::string> &toks, TokIt index
 	}
 
 	return ret;
-}
-
-bool is_number(const std::string &s) {
-    std::string::const_iterator it = s.begin();
-    while (it != s.end() && (std::isdigit(*it) || *it == '-')) ++it;
-    return !s.empty() && it == s.end();
-}
-
-bool is_stack_variable(const std::string &str) {
-	// ex of variable: -4(%rbp)
-	if (str.find("%rbp") != std::string::npos) {
-		size_t parenthesis = str.find('(');
-		if (parenthesis != -1) {
-			std::string num_before = str.substr(0, parenthesis);
-			if (is_number(num_before)) {
-				if (std::stoi(num_before) < 0) {
-					std::string reg = str.substr(parenthesis, str.size()-parenthesis);
-					if (reg == "(%rbp)") {
-						return true;
-					}
-				}
-			}
-		}
-	}
-	
-	return false;
-}
-
-bool is_global_variable(const std::string &str) {
-	if (str.find("%rip") != std::string::npos) {
-		return true;
-	}
-	return false;
-}
-
-bool is_variable(const std::string &str) {
-	return (is_stack_variable(str) || is_global_variable(str));
-}
-
-bool is_dereferenced(const std::string &str) {
-	return (str.front() == '(' && str.back() == ')');
 }
 
 //bool is_pointer(const std::string &str) {
@@ -637,7 +698,11 @@ namespace token_function {
 		if (tok_it+2 != _us_ltoks.end()) {
 			value = *(tok_it+2);
 		}
+		
 		variable_declaration(*tok_it, *(tok_it+1), value, current_function, current_stack_size, is_pointer);
+		
+		std::vector<std::string> type_qualifiers{_us_ltoks.begin(), tok_it};
+		variables.back().type_qualifiers = type_qualifiers;
 	}
 	
 	void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
@@ -650,6 +715,16 @@ namespace token_function {
 	}
 	
 	void equals(TokIt tok_it) {
+		std::optional<std::reference_wrapper<Variable>> var{get_variable_by_asm_or_name(*(tok_it-1))};
+		if (var.has_value()) { // doesn't work since var is a stack variable so tok_it-1 is '-4(%rbp)', not 'x'
+			if (std::ranges::find(var->get().type_qualifiers, "const") != var->get().type_qualifiers.end() && !is_dereferenced(*(tok_it-1))) {
+				clog::error("Can't change the value of a constant variable.");
+			}
+			//if (std::ranges::find(var->get().type_qualifiers, "dconst") != var->get().type_qualifiers.end() && is_dereferenced(*(tok_it-1))) {
+			//	clog::error("Can't change the dereferenced value of dereference constant variable.");
+			//}
+		}
+
 		equals(*(tok_it+1), *(tok_it-1), true);
 	}
 
@@ -688,16 +763,15 @@ namespace token_function {
 	}
 
 	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
+		std::string func_name = *(tok_it+1);
+		if (std::ranges::find(functions, func_name) != functions.end()) {
+			clog::error("Function of name \"" + func_name + "\" already defined.");
+		}
+		
 		if (TEXT_ASM == out.end()) {
 			out.push_back(".text\n");
 		}
 		
-		std::vector<std::string> attributes{};
-		std::copy(_us_ltoks.begin(), tok_it, attributes.begin());
-		
-		
-		
-		std::string func_name = *(tok_it+1);
 		out.push_back(".globl " + func_name + '\n');
 		out.push_back(".type " + func_name + ", @function\n");
 		out.push_back(func_name + ":\n");
@@ -845,7 +919,6 @@ namespace token_function {
 		if (braces::braces.size() > 1) {
 			int index = braces::braces_end_index(false);
 			Brace open_brace = braces::get_last_open_index(index);
-			int type_index = -1;
 			if (open_brace.index != -1) {
 				if (open_brace.type == Brace::Type::Function) {
 					function_end(tok_it);

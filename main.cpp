@@ -16,4 +16,6 @@ int main(int argc, char* argv[]) {
 
 	begin_preprocessing();
 	begin_compile(args);
+
+	return 0;
 }
