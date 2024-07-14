@@ -4,7 +4,7 @@ OBJ = rc.o Token.o
 .PHONY: clean run_asm test bear
 
 rc: preprocessor.cpp compiler.cpp util.h Token.h main.cpp
-	${CC} -Wno-trigraphs -g -xc++ -std=c++20 Token.h main.cpp -o rc 
+	${CC} -Wno-trigraphs -g -xc++ -std=c++23 Token.h main.cpp -o rc 
 
 clean:
 	find . -type f -name 'core' -exec rm -f {} \;
@@ -18,7 +18,7 @@ run_asm:
 
 test:
 	cd tests && \
-	${CC} -g -xc++ -std=c++20 test_compiler.cpp -o testrc && \
+	${CC} -g -xc++ -std=c++23 test_compiler.cpp -o testrc && \
 	./testrc
 
 bear:

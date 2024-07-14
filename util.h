@@ -14,7 +14,7 @@ inline size_t line_number{0u};
 
 inline std::vector<std::string> lines = { };
 
-namespace clog {
+namespace message {
 	inline void out(const std::string &str) noexcept {
 		std::cout << str << std::endl;
 	}
@@ -64,7 +64,7 @@ inline void while_find_token(const std::string &tok, int begin, int end, const s
 	while (tok_it < _ltoks.end()) {
 		tok_it = find_tok(_ltoks, tok, tok_it);
 		if (tok_it != _ltoks.end()) {
-			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
+			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) message::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -78,7 +78,7 @@ inline void while_us_find_token(const std::string &tok, int begin, int end, cons
 	while (tok_it < _us_ltoks.end()) {
 		tok_it = find_tok(_us_ltoks, tok, tok_it);
 		if (tok_it != _us_ltoks.end()) {
-			if (tok_it-begin < _us_ltoks.begin() || tok_it+end >= _us_ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
+			if (tok_it-begin < _us_ltoks.begin() || tok_it+end >= _us_ltoks.end()) message::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -92,7 +92,7 @@ inline void while_find_tokens(const std::vector<std::string> &toks, int begin, i
 	while (tok_it < _ltoks.end()) {
 		tok_it = find_first_tok(_ltoks, toks, tok_it);
 		if (tok_it != _ltoks.end()) {
-			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
+			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) message::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;
@@ -106,7 +106,7 @@ inline void while_us_find_tokens(const std::vector<std::string> &toks, int begin
 	while (tok_it < _us_ltoks.end()) {
 		tok_it = find_first_tok(_us_ltoks, toks, tok_it);
 		if (tok_it != _us_ltoks.end()) {
-			if (tok_it-begin < _us_ltoks.begin() || tok_it+end >= _us_ltoks.end()) clog::error("Token expected around \"" + *tok_it + "\", but there is none.");
+			if (tok_it-begin < _us_ltoks.begin() || tok_it+end >= _us_ltoks.end()) message::error("Token expected around \"" + *tok_it + "\", but there is none.");
 			func(tok_it);
 		} else {
 			break;

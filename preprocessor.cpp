@@ -5,7 +5,7 @@ namespace token_function {
 	void macro(TokIt tok_it) {
 		if (*(tok_it+1) == "inc") {
 			if (*(tok_it+2) != "\"" || *(tok_it+4) != "\"") {
-				clog::error("Include macro parameter must be wrapped in double quotes in a valid manner.");
+				message::error("Include macro parameter must be wrapped in double quotes in a valid manner.");
 			}
 			
 			std::ifstream in(*(tok_it+3));

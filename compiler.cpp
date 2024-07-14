@@ -207,12 +207,54 @@ bool is_dereferenced(const std::string &str) {
 	return (str.front() == '(' && str.back() == ')');
 }
 
+struct Type {
+	std::string name{};
+	std::string asm_name{};
+	int size{};
+	char suffix{};
+	bool is_pointer{};
+	int true_pointer_size{};
+	
+	Type() {}
+	Type(const std::string& name, const std::string& asm_name, int size, char suffix)
+		: name{name}, asm_name{asm_name}, size{size}, suffix{suffix} {}
+};
+
+std::vector<Type> types{
+	{"int", ".word", 4, 'l'},
+	{"lng", ".long", 8, 'q'},
+	{"sht", ".short", 2, 'w'},
+	{"ch", ".byte", 1, 'b'}
+};
+
+std::vector<std::string> type_names() {
+	return types | std::views::transform([](const Type& type) { return type.name; }) | std::ranges::to<std::vector>();
+}
+
+std::optional<Type> get_type_of_size(int size) {
+	for (const Type& type : types) {
+		if (type.size == size) {
+			return type;
+		}
+	}
+
+	return std::nullopt;
+}
+
+std::optional<Type> get_type_of_name(const std::string& name) {
+	for (const Type& type : types) {
+		if (type.name == name) {
+			return type;
+		}
+	}
+
+	return std::nullopt;
+}
+
 struct Variable {
 	std::string name;
-	int size;
+	Type type{};
 	int stack_location;
-	bool is_pointer;
-	int true_pointer_size;
 	int braces_index;
 	std::vector<std::string> type_qualifiers;
 };
@@ -229,14 +271,6 @@ std::vector<std::string> variable_names() {
 	return names;
 }
 
-std::vector<int> variable_sizes() {
-	std::vector<int> sizes{};
-	for (Variable &var : variables) {
-		sizes.push_back(var.size);
-	}
-	return sizes;
-}
-
 std::vector<int> variable_stack_locations() {
 	std::vector<int> stack_locations{};
 	for (Variable &var : variables) {
@@ -245,20 +279,12 @@ std::vector<int> variable_stack_locations() {
 	return stack_locations;
 }
 
-std::vector<bool> variable_is_pointer() {
-	std::vector<bool> is_pointers{};
+std::vector<Type> variable_types() {
+	std::vector<Type> types{};
 	for (Variable &var : variables) {
-		is_pointers.push_back(var.is_pointer);
+		types.push_back(var.type);
 	}
-	return is_pointers;
-}
-
-std::vector<int> variable_true_pointer_size() {
-	std::vector<int> true_pointer_sizes{};
-	for (Variable &var : variables) {
-		true_pointer_sizes.push_back(var.true_pointer_size);
-	}
-	return true_pointer_sizes;
+	return types;
 }
 
 std::vector<int> variable_braces_index() {
@@ -337,13 +363,6 @@ std::vector<Register> registers = {
 	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
 };
 
-namespace types {
-	const std::vector<std::string> types = { "int", "lng", "sht", "ch" };
-	const std::vector<std::string> asm_types = { ".word", ".long", ".short", ".byte" };
-	const std::vector<int> sizes = { 4, 8, 2, 1 };
-	const std::vector<std::string> suffixes = { "l", "q", "w", "b" }; // Need to make it a string to bypass weird warnings
-};
-
 const std::vector<std::string> math_symbols = { "*", "/", "+", "-" };
 
 std::vector<std::string> out;
@@ -359,7 +378,7 @@ RegisterRef get_available_register() {
 		if (!reg.occupied) return RegisterRef(reg); 
 	}
 
-	clog::error("No registers are available.");
+	message::error("No registers are available.");
 	return std::nullopt;
 }
 
@@ -405,12 +424,12 @@ int get_size_of_asm_variable(const std::string &str) {
 		int stack_offset = std::stoi(str.substr(1, str.find('(')-1));
 		int var_vec_index = index_of(variable_stack_locations(), -stack_offset);
 		
-		return variables[var_vec_index].size;
+		return variables[var_vec_index].type.size;
 	} else if (str.find("%rip") != std::string::npos) {
-		return variables[index_of(variable_names(), str.substr(0, str.find('(')))].size;
+		return variables[index_of(variable_names(), str.substr(0, str.find('(')))].type.size;
 	}
 	
-	clog::error("Variable does not exist.");
+	message::error("Variable does not exist.");
 	return -1;
 }
 
@@ -423,7 +442,7 @@ int get_size_of_register(const std::string &str) {
 		if (reg.comp_names(reg.names.bl, str)) return 1;
 	}
 	
-	clog::error("Register does not exist.");
+	message::error("Register does not exist.");
 	return -1;
 }
 
@@ -435,7 +454,7 @@ int get_size_of_number(const std::string &str) {
 	if (number < INT_MAX) return 4;
 	if (number < LONG_MAX) return 8;
 
-	clog::error("Number out of bounds.");
+	message::error("Number out of bounds.");
 	return 0;
 }
 
@@ -449,7 +468,7 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 			auto corresponding_variable_it = std::ranges::find_if(dereferenced_register_variable_correspondant, [&](auto p){ return (p.first == str); });
 			variable_index = index_of(names, corresponding_variable_it->second);
 		}
-		return variables[variable_index].true_pointer_size;
+		return variables[variable_index].type.true_pointer_size;
 	} if (is_variable(str)) {
 		return get_size_of_asm_variable(str);
 	} else if (is_number(str)) {
@@ -458,7 +477,7 @@ int get_size_of_operand(std::string str, int number_default = -1) {
 	} else if (RegisterRef reg = get_register(str); reg.has_value()) {
 		return get_size_of_register(str);
 	} else if (auto it = std::ranges::find(names, str); it != names.end()) {
-		return variables[variable_index].size;
+		return variables[variable_index].type.size;
 	} else {
 		return -1;
 	}
@@ -474,7 +493,7 @@ char size_to_letter(int size) {
 	else if (size == 8)
 		return 'q';
 	if (size != -1)
-		clog::error("Invalid register size.");
+		message::error("Invalid register size.");
 	return '\0';
 }
 
@@ -490,7 +509,7 @@ std::string get_mov_instruction(int lhs, int rhs) {
 	if (lhs < rhs)
 		return sign_extension_mov(lhs, rhs);
 	else
-		return "mov" + (rhs != -1 ? types::suffixes[index_of(types::sizes, rhs)] : "q");
+		return std::string{"mov"} + (rhs != -1 ? get_type_of_size(rhs)->suffix : 'q');
 }
 
 std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
@@ -562,6 +581,23 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	return { lhs, rhs };
 }
 
+Type get_type(const std::string &str) {
+	std::optional<std::reference_wrapper<Variable>> var{get_variable_by_asm_or_name(str)};
+	if (var.has_value()) {
+		return var->get().type;
+	} else if (is_number(str)) {
+		std::optional<Type> type{get_type_of_size(get_size_of_number(str)).value()};
+		if (!type.has_value()) {
+			message::error("Number too large, can't get type.");
+		}
+		return type.value();
+	} else {
+		message::error("Couldn't get type");
+	}
+	
+	return Type{};
+}
+
 namespace token_function {
 	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
@@ -572,7 +608,7 @@ namespace token_function {
 		} else if (is_global_variable(*tok_it)) {
 			var_name = before_parenthesis;
 		} else {
-			clog::error("Only pointers can be dereferenced");
+			message::error("Only pointers can be dereferenced");
 		}
 
 		RegisterRef reg = get_available_register();
@@ -602,7 +638,7 @@ namespace token_function {
 		} else if (*tok_it == "-") {
 			cmd = "sub";
 		} else {
-			clog::error("Invalid math operator.");
+			message::error("Invalid math operator.");
 		}
 		if (cmd == "add" || cmd == "sub") {
 			int rhs_size = get_size_of_operand(*(tok_it-1));
@@ -613,7 +649,7 @@ namespace token_function {
 			
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
 			out.push_back(
-				cmd + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] + ' ' +
+				cmd + get_type_of_size(get_size_of_operand(lhs_rhs.second))->suffix + ' ' +
 				set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 			);
 			//size_t old_it_index = from_it(_us_ltoks, tok_it);
@@ -645,7 +681,7 @@ namespace token_function {
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
-			out.push_back(cmd + types::suffixes[index_of(types::sizes, arithmatic_size)] + ' ' + rhs->get().name_from_size(arithmatic_size) + '\n');
+			out.push_back(cmd + get_type_of_size(arithmatic_size)->suffix + ' ' + rhs->get().name_from_size(arithmatic_size) + '\n');
 
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
 
@@ -656,29 +692,32 @@ namespace token_function {
 
 	void variable_declaration(const std::string &type, const std::string &name, std::string value,
 						   const std::string &current_function, int &current_stack_size, bool is_pointer) {
-		size_t type_vec_index = index_of(types::types, type);
-		
+		std::optional<Type> _type = get_type_of_name(type);
+		if (!_type.has_value()) {
+			message::error("Type does not exist.");
+		}
+
 		if (DATA_ASM == out.end()) {
 			out.insert(TEXT_ASM, ".data\n");
 		}
 		
 		if (is_pointer) {
 			variable_declaration("lng", name, value, current_function, current_stack_size, false);
-			variables.back().is_pointer = true;
-			variables.back().true_pointer_size = types::sizes[type_vec_index];
+			variables.back().type.is_pointer = true;
+			variables.back().type.true_pointer_size = _type->size;
 		} else if (current_function.empty()) {
 			out.insert(DATA_ASM+1, ".globl " + name + '\n');
 			out.insert(DATA_ASM+2, ".align 8\n");
 			out.insert(DATA_ASM+3, ".type " + name + ", @object\n");
-			out.insert(DATA_ASM+4, ".size " + name + ", " + std::to_string(types::sizes[type_vec_index]) + '\n');
+			out.insert(DATA_ASM+4, ".size " + name + ", " + std::to_string(_type->size) + '\n');
 			out.insert(DATA_ASM+5, name + ":\n");
 			
-			out.insert(DATA_ASM+6, types::asm_types[type_vec_index] + ' ' + value + '\n');
+			out.insert(DATA_ASM+6, _type->asm_name + ' ' + value + '\n');
 			
-			variables.push_back(Variable{name, types::sizes[type_vec_index], INT_MAX, false, -1, braces::braces_end_index()});
+			variables.push_back(Variable{name, _type.value(), INT_MAX, braces::braces_end_index()});
 		} else {
-			current_stack_size += types::sizes[type_vec_index];
-			variables.push_back(Variable{name, types::sizes[type_vec_index], -current_stack_size, false, -1, braces::braces_end_index()});
+			current_stack_size += _type->size;
+			variables.push_back(Variable{name, _type.value(), -current_stack_size, braces::braces_end_index()});
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
 			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
 			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
@@ -686,6 +725,10 @@ namespace token_function {
 			unoccupy_if_register(lhs_rhs.first);
 			unoccupy_if_register(lhs_rhs.second);
 		}
+	}
+	
+	void cast(TokIt tok_it) {
+		
 	}
 
 	void variable_declaration(TokIt tok_it, const std::string &current_function, int &current_stack_size) {
@@ -718,10 +761,10 @@ namespace token_function {
 		std::optional<std::reference_wrapper<Variable>> var{get_variable_by_asm_or_name(*(tok_it-1))};
 		if (var.has_value()) { // doesn't work since var is a stack variable so tok_it-1 is '-4(%rbp)', not 'x'
 			if (std::ranges::find(var->get().type_qualifiers, "const") != var->get().type_qualifiers.end() && !is_dereferenced(*(tok_it-1))) {
-				clog::error("Can't change the value of a constant variable.");
+				message::error("Can't change the value of a constant variable.");
 			}
 			//if (std::ranges::find(var->get().type_qualifiers, "dconst") != var->get().type_qualifiers.end() && is_dereferenced(*(tok_it-1))) {
-			//	clog::error("Can't change the dereferenced value of dereference constant variable.");
+			//	message::error("Can't change the dereferenced value of dereference constant variable.");
 			//}
 		}
 
@@ -765,7 +808,7 @@ namespace token_function {
 	void function_declaration(TokIt tok_it, std::vector<std::string> &functions, std::vector<int> &stack_sizes, std::string &current_function) {
 		std::string func_name = *(tok_it+1);
 		if (std::ranges::find(functions, func_name) != functions.end()) {
-			clog::error("Function of name \"" + func_name + "\" already defined.");
+			message::error("Function of name \"" + func_name + "\" already defined.");
 		}
 		
 		if (TEXT_ASM == out.end()) {
@@ -793,10 +836,11 @@ namespace token_function {
 	}
 	
 	void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
-		size_t type_vec_index = index_of(types::sizes, get_size_of_operand(*(tok_it+1)));
-		std::string ret = "mov" + types::suffixes[type_vec_index];
+		Type type = get_type(*(tok_it+1));
+		
+		std::string ret = std::string{"mov"} + type.suffix;
 		RegisterRef rax = get_register("rax");
-		ret += ' ' + set_operand_prefix(*(tok_it+1)) + ", " + rax->get().name_from_size(types::sizes[type_vec_index]) + '\n';
+		ret += ' ' + set_operand_prefix(*(tok_it+1)) + ", " + rax->get().name_from_size(type.size) + '\n';
 		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
@@ -838,7 +882,7 @@ namespace token_function {
 			}
 		}
 		
-		clog::error("Invalid condition operator.");
+		message::error("Invalid condition operator.");
 		return "";
 	}
 	
@@ -859,8 +903,10 @@ namespace token_function {
 		
 		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
 		
+		Type type = get_type(lhs_rhs.second);
+		
 		// Insert before call instruction
-		out.push_back("cmp" + types::suffixes[index_of(types::sizes, get_size_of_operand(lhs_rhs.second))] +
+		out.push_back(std::string{"cmp"} + type.suffix +
 			' ' + set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
 		);
 
@@ -939,7 +985,7 @@ namespace token_function {
 				return;
 			}
 		}
-		clog::error("Closing brace unexpected.");
+		message::error("Closing brace unexpected.");
 	}
 	
 	void quote(TokIt tok_it, int &str_index, bool &in_quote) {
@@ -956,9 +1002,12 @@ namespace token_function {
 				str = ".asciz";
 			}
 			
+			Type type{get_type_of_name("char").value()};
+			type.is_pointer = true;
+			
 			out.insert(DATA_ASM+2, str + ' ' + combine_toks(tok_it-2, tok_it+1) + std::string(1, '\n'));
 			commit(replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it, ".STR" + std::to_string(str_index)));
-			variables.push_back(Variable{".STR" + std::to_string(str_index), 8, INT_MAX, false, -1, braces::braces_end_index()});
+			variables.push_back(Variable{".STR" + std::to_string(str_index), type, -1, braces::braces_end_index()});
 			str_index++;
 		}
 		in_quote = !in_quote;
@@ -971,7 +1020,7 @@ int begin_compile(std::vector<std::string> args) {
 
 	std::string output_dir = "./";
 	if (args.size() < 2) {
-		clog::error("Must input file to compile.", 0);
+		message::error("Must input file to compile.", 0);
 		return 0;
 	} else if (auto it = std::ranges::find(args, "-od"); it != args.end()) {
 		output_dir = *(it+1);
@@ -1012,7 +1061,7 @@ int begin_compile(std::vector<std::string> args) {
 		while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
 			if (tok_it != _us_ltoks.begin()) {
 				if (std::ranges::find(functions, *(tok_it+1)) != functions.end()) {
-					clog::error("Cannot declare function. Function of this name already exists.");
+					message::error("Cannot declare function. Function of this name already exists.");
 					return;
 				}
 			}
@@ -1028,8 +1077,8 @@ int begin_compile(std::vector<std::string> args) {
 		});
 		while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
 			if (tok_it != _us_ltoks.begin()) {
-				if (std::ranges::find(types::types, *(tok_it-1)) != types::types.end()) {
-					clog::error("Cannot define variable. Variable of this name already exists.");
+				if (get_type_of_name(*(tok_it-1)).has_value()) {
+					message::error("Cannot define variable. Variable of this name already exists.");
 					return;
 				}
 			}
@@ -1054,7 +1103,7 @@ int begin_compile(std::vector<std::string> args) {
 		while_us_find_token("=", 1, 1, [&](TokIt tok_it) {
 			token_function::equals(tok_it);
 		});
-		while_us_find_tokens(types::types, 0, 1, [&](TokIt tok_it) {
+		while_us_find_tokens(type_names(), 0, 1, [&](TokIt tok_it) {
 			size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
 			token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 		});
