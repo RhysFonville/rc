@@ -4,25 +4,25 @@
 	ch c 42
 	ch nl 10
 
-	int i 1
-	i < 10 *?
-		int j 0
+	int i 1int
+	i < 10int *?
+		int j 0int
 		j < i *?
-			>w 1 &c 1
-			j = j + 1
+			>w 1int &c 1int
+			j = j + 1int
 		}
-		>w 1 &nl 1
-		i = i + 1
+		>w 1int &nl 1int
+		i = i + 1int
 	}
-	i > 0 *?
-		int j 0
+	i > 0int *?
+		int j 0int
 		j < i *?
-			>w 1 &c 1
-			j = j + 1
+			>w 1int &c 1int
+			j = j + 1int
 		}
-		>w 1 &nl 1
-		i = i - 1
+		>w 1int &nl 1int
+		i = i - 1int
 	}
-	>e 0
+	>e 0int
 	#> 0
 }

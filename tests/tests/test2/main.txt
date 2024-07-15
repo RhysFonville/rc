@@ -1,9 +1,9 @@
 // TEST #2 - FUNCTIONS AND RETURN
 
-int i 0
+int i 0int
 
 #add24
-	int ret i+24
+	int ret i+24int
 	#> ret
 }
 
@@ -19,11 +19,11 @@ int i 0
 
 #main
 	i = add48
-	>w 1 &i 1
+	>w 1int &i 1int
 	i = 10
-	>w 1 &i 1
+	>w 1int &i 1int
 	mult2
 	
-	>e 0
+	>e 0int
 	#> 0
 }

@@ -1,27 +1,27 @@
 // TEST #4 - ELSE STATEMENTS
 
 #main
-	int a 0
+	int a 0int
 	
 	1 == 2 ?
-		a = 48
+		a = 48int
 	} ??
-		a = 49
+		a = 49int
 	}
 	
-	>w 1 &a 1
+	>w 1int &a 1int
 	
-	a <= 48 ?
-		a = a + 5
+	a <= 48int ?
+		a = a + 5int
 	} ??
-		a = 15
-		a = a - 5
+		a = 15int
+		a = a - 5int
 	}
 
-	>w 1 &a 1
-	a = 10
-	>w 1 &a 1
+	>w 1int &a 1int
+	a = 10int
+	>w 1int &a 1int
 	
-	>e 0
+	>e 0int
 	#> 0
 }

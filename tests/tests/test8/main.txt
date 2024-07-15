@@ -1,14 +1,14 @@
 // TEST #8 - GENERAL TEST
 
 #main
-	ch nl 10
-	ch run 1
-	ch c 0
+	ch nl 10ch
+	ch run 1ch
+	ch c 0ch
 	
-	ch first_iteration 1
+	ch first_iteration 1ch
 	
 	run != 0 *?
-		>w 1 &"Enter a character: " 19
+		>w 1int &"Enter a character: " 19int
 		
 		//>r 0 &c 1
 		first_iteration == 1 ?
@@ -20,16 +20,16 @@
 
 		c != 126 ?
 			c = 1+c
-			>w 1 &"Your new character is: " 23
-			>w 1 &c 1
-			>w 1 &nl 1
+			>w 1 &"Your new character is: " 23int
+			>w 1int &c 1int
+			>w 1int &nl 1int
 		} ??
 			run = 0
 		}
 	}
 	
-	>w 1 &nl 1
+	>w 1int &nl 1int
 
-	>e 0
+	>e 0int
 	#> 0
 }

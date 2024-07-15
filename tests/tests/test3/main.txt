@@ -1,26 +1,26 @@
 // TEST #3 - Conditionals
 
-int i 48
+int i 48int
 
 #is_true
-	i = i+2
+	i = i+2int
 	#> i
 }
 
 #main
-	sht a i
+	sht a i->sht
 	int c i
-	a == 2 ?
+	a == 2sht ?
 		c = is_true
 	}
-	>w 1 &c 1
-	a == i ?
+	>w 1int &c 1int
+	a == i->sht ?
 		c = is_true
 	}
-	>w 1 &c 1
-	c = 10
-	>w 1 &c 1
+	>w 1int &c 1int
+	c = 10int
+	>w 1int &c 1int
 	
-	>e 0
+	>e 0int
 	#> 0
 }

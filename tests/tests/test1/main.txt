@@ -3,16 +3,16 @@
 #main
 	ch nl 10
 
-	int i 5
+	int i 5int
 	ch c 2
-	lng l 48
-	sht s 8
+	lng l 48lng
+	sht s 8sht
 	
-	i = c+4
-	i = i+l
-	>w 1 &i 1+c-2
-	>w 1 &nl 1
+	i = (c+4)->ch
+	i = i+l->int
+	>w 1int &i (1+c-2)->int
+	>w 1int &nl 1int
 	
-	>e 0
+	>e 0int
 	#> 0
 }

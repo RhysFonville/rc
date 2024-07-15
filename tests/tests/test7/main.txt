@@ -1,16 +1,16 @@
 // TEST #7 - WHILE LOOPS
 
 #main
-	int i 0
-	i < 10 *?
-		ch c i+48
-		>w 1 &c 1
-		i=i+1
+	int i 0int
+	i < 10int *?
+		ch c i->ch+48
+		>w 1int &c 1int
+		i=i+1int
 	}
 	
-	i=10
-	>w 1 &i 1
+	i = 10int
+	>w 1int &i 1int
 
-	>e 0
+	>e 0int
 	#> 0
 }
