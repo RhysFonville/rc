@@ -2,12 +2,12 @@
 #include <functional>
 #include <iostream>
 #include <fstream>
-#include <iterator>
 #include <string>
 #include <climits>
 #include <optional>
 #include <ranges>
 #include <utility>
+#include <regex>
 #include "preprocessor.cpp" // Including in here stops weird redefinition errors for util.h
 
 #define DATA_ASM (std::ranges::find(out, ".data\n"))
@@ -644,6 +644,19 @@ Type get_type(const std::string &str) {
 	return Type{};
 }
 
+std::smatch get_innermost_parentheses(const std::string& str) {
+	std::regex regex{R"(\([^\(]*?\))"};
+	std::smatch match{};
+	std::regex_search(str, match, regex);
+	
+	if (match.empty()) {
+		std::regex entire_regex{R"(.+)"};
+		std::regex_search(str, match, entire_regex);
+	}
+
+	return match;
+}
+
 namespace token_function {
 	void dereference(TokIt &tok_it) {
 		_us_ltoks.erase(tok_it);
@@ -1141,106 +1154,122 @@ int begin_compile(std::vector<std::string> args) {
 	
 	line_number = 0;
 	for (std::string l : lines) {
-		line_number++;
-		l = trim(l);
-		_ltoks = split(l);
-		_us_ltoks = unspaced(_ltoks);
+		std::smatch chunk{get_innermost_parentheses(l)};
+		bool no_parentheses{chunk.str().find('(') == std::string::npos};
+		while (!chunk.empty()) {
+			line_number++;
+			std::string _chunk = trim(chunk.str());
+			_ltoks = split(_chunk);
+			_us_ltoks = unspaced(_ltoks);
+			
+			//std::ranges::for_each(_us_ltoks,[](auto s){std::cout<<s<<' ';});std::cout<<std::endl; // print all toks
+			
+			while_us_find_token("\"", 0, 0, [&](TokIt tok_it) {
+				token_function::quote(tok_it, str_index, in_quote);
+			});
+			while_us_find_token("//", 0, 0, [&](TokIt tok_it) {
+				int i = std::distance(_us_ltoks.begin(), tok_it);
+				while ( i < _us_ltoks.size()) {
+					_us_ltoks.erase(_us_ltoks.begin()+i);
+				}
+			});
+			while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
+				if (tok_it != _us_ltoks.begin()) {
+					if (std::ranges::find(functions, *(tok_it+1)) != functions.end()) {
+						message::error("Cannot declare function. Function of this name already exists.");
+						return;
+					}
+				}
+				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
+			});
+			while_us_find_tokens(functions, 0, 0, [&](TokIt tok_it) {
+				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
+					if (*(tok_it-1) == "#") {
+						return;
+					}
+				}
+				token_function::function_call(tok_it);
+			});
+			while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
+				if (tok_it != _us_ltoks.begin()) {
+					if (get_type_of_name(*(tok_it-1)).has_value()) {
+						message::error("Cannot define variable. Variable of this name already exists.");
+						return;
+					}
+				}
 		
-		//std::ranges::for_each(_us_ltoks,[](auto s){std::cout<<s<<' ';});std::cout<<std::endl; // print all toks
-		
-		while_us_find_token("\"", 0, 0, [&](TokIt tok_it) {
-			token_function::quote(tok_it, str_index, in_quote);
-		});
-		while_us_find_token("//", 0, 0, [&](TokIt tok_it) {
-			int i = std::distance(_us_ltoks.begin(), tok_it);
-			while ( i < _us_ltoks.size()) {
-				_us_ltoks.erase(_us_ltoks.begin()+i);
-			}
-		});
-		while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
-			if (tok_it != _us_ltoks.begin()) {
-				if (std::ranges::find(functions, *(tok_it+1)) != functions.end()) {
-					message::error("Cannot declare function. Function of this name already exists.");
-					return;
+				size_t vec_index = index_of(variable_names(), *tok_it);
+				if (variable_stack_locations()[vec_index] != INT_MAX) {
+					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)"));
+				} else {
+					*tok_it += "(%rip)";
+					commit(_us_ltoks);
 				}
-			}
-			token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
-		});
-		while_us_find_tokens(functions, 0, 0, [&](TokIt tok_it) {
-			if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
-				if (*(tok_it-1) == "#") {
-					return;
-				}
-			}
-			token_function::function_call(tok_it);
-		});
-		while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
-			if (tok_it != _us_ltoks.begin()) {
-				if (get_type_of_name(*(tok_it-1)).has_value()) {
-					message::error("Cannot define variable. Variable of this name already exists.");
-					return;
-				}
-			}
-	
-			size_t vec_index = index_of(variable_names(), *tok_it);
-			if (variable_stack_locations()[vec_index] != INT_MAX) {
-				commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)"));
-			} else {
-				*tok_it += "(%rip)";
-				commit(_us_ltoks);
-			}
-		});
-		while_us_find_token("->", 1, 1, [&](TokIt tok_it) {
-			token_function::cast(tok_it);
-		});
-		while_us_find_token("^", 0, 1, [&](TokIt tok_it) {
-			token_function::dereference(tok_it);
-		});
-		while_us_find_token("&", 0, 1, [&](TokIt tok_it) {
-			token_function::address_of(tok_it);
-		});
-		while_us_find_tokens(math_symbols, 1, 1, [&](TokIt tok_it) {
-			token_function::math(tok_it);
-		});
-		while_us_find_token("=", 1, 1, [&](TokIt tok_it) {
-			token_function::equals(tok_it);
-		});
-		while_us_find_tokens(type_names(), 0, 1, [&](TokIt tok_it) {
-			size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
-			token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
-		});
-		while_us_find_token("#>", 0, 1, [&](TokIt tok_it) {
-		token_function::function_return(tok_it, _us_ltoks, current_function);
-		});
-		while_us_find_token("{", 0, 0, [&](TokIt tok_it) {
-			token_function::brace_open(tok_it);
-		});
-		while_us_find_token("}", 0, 0, [&](TokIt tok_it) {
-			token_function::brace_close(tok_it);
-		});
-		while_us_find_token("??", 0, 0, [&](TokIt tok_it) {
-			token_function::else_statement(tok_it);
-		});
-		while_us_find_token("?", 1, 0, [&](TokIt tok_it) {
-			token_function::if_statement(tok_it);
-		});
-		while_us_find_token("*?", 1, 0, [&](TokIt tok_it) {
-			token_function::while_loop(tok_it);
-		});
-		while_us_find_token("~", 0, 0, [&](TokIt tok_it) {
-			commit(replace_tok(_us_ltoks, tok_it, "rax"));
-		});
-		while_us_find_token(">", 0, 2, [&](TokIt tok_it) {
-			token_function::base_functions(tok_it);
-		});
+			});
+			while_us_find_token("->", 1, 1, [&](TokIt tok_it) {
+				token_function::cast(tok_it);
+			});
+			while_us_find_token("^", 0, 1, [&](TokIt tok_it) {
+				token_function::dereference(tok_it);
+			});
+			while_us_find_token("&", 0, 1, [&](TokIt tok_it) {
+				token_function::address_of(tok_it);
+			});
+			while_us_find_tokens(math_symbols, 1, 1, [&](TokIt tok_it) {
+				token_function::math(tok_it);
+			});
+			while_us_find_token("=", 1, 1, [&](TokIt tok_it) {
+				token_function::equals(tok_it);
+			});
+			while_us_find_tokens(type_names(), 0, 1, [&](TokIt tok_it) {
+				size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
+				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
+			});
+			while_us_find_token("#>", 0, 1, [&](TokIt tok_it) {
+			token_function::function_return(tok_it, _us_ltoks, current_function);
+			});
+			while_us_find_token("{", 0, 0, [&](TokIt tok_it) {
+				token_function::brace_open(tok_it);
+			});
+			while_us_find_token("}", 0, 0, [&](TokIt tok_it) {
+				token_function::brace_close(tok_it);
+			});
+			while_us_find_token("??", 0, 0, [&](TokIt tok_it) {
+				token_function::else_statement(tok_it);
+			});
+			while_us_find_token("?", 1, 0, [&](TokIt tok_it) {
+				token_function::if_statement(tok_it);
+			});
+			while_us_find_token("*?", 1, 0, [&](TokIt tok_it) {
+				token_function::while_loop(tok_it);
+			});
+			while_us_find_token("~", 0, 0, [&](TokIt tok_it) {
+				commit(replace_tok(_us_ltoks, tok_it, "rax"));
+			});
+			while_us_find_token(">", 0, 2, [&](TokIt tok_it) {
+				token_function::base_functions(tok_it);
+			});
 
+			l.erase(l.begin()+chunk.position(), l.begin()+chunk.position()+chunk.length());
+			l.insert(chunk.position(), combine_toks(_us_ltoks.begin(), _us_ltoks.end()));
+			
+			if (no_parentheses) {
+				break;
+			} else {
+				l.erase(l.begin()+chunk.position());
+				l.erase(l.begin()+l.find(')', std::distance(l.begin(), l.begin()+chunk.position())));
+				chunk = get_innermost_parentheses(l);
+				no_parentheses = (chunk.str().find('(') == std::string::npos);
+			}
+		}
+		
 		disallowed_toks.clear();
 
 		for (Register &reg : registers) {
 			reg.occupied = false;
 		}
 	}
-
+	
 	out.insert(out.begin(), ".file \"" + std::string(args[1]) + "\"\n");
 
 	for (std::string &str : out) {
