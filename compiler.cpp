@@ -188,6 +188,16 @@ struct Type {
 	bool operator!=(const Type& type) {
 		return !(*this == type);
 	}
+/*
+	void operator=(const Type& type) {
+		name = type.name;
+		asm_name = type.asm_name;
+		size = type.size;
+		suffix = type.suffix;
+		is_pointer = type.is_pointer;
+		true_pointer_size = type.true_pointer_size;
+	}
+*/
 };
 
 std::vector<Type> types{
@@ -742,6 +752,18 @@ namespace token_function {
 		}
 	}
 
+	void cast(TokIt tok_it) {
+		std::optional<Variable> var = get_variable_by_asm(*(tok_it-1));
+		if (var.has_value()) {
+			var->type = get_type_of_name(*(tok_it+1)).value();
+		} else if (is_number(*(tok_it-1))) {
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, get_number(*(tok_it-1)) + *(tok_it+1)));
+			tok_it -= 1;
+		} else {
+			message::error("Invalid token to cast.");	
+		}
+	}
+
 	void variable_declaration(const std::string &type, const std::string &name, std::string value,
 						   const std::string &current_function, int &current_stack_size, bool is_pointer) {
 		std::optional<Type> _type = get_type_of_name(type);
@@ -787,10 +809,6 @@ namespace token_function {
 		}
 	}
 	
-	void cast(TokIt tok_it) {
-		
-	}
-
 	void variable_declaration(TokIt tok_it, const std::string &current_function, int &current_stack_size) {
 		bool is_pointer = false;
 		if (tok_it != _us_ltoks.begin()) {
@@ -1171,6 +1189,9 @@ int begin_compile(std::vector<std::string> args) {
 				*tok_it += "(%rip)";
 				commit(_us_ltoks);
 			}
+		});
+		while_us_find_token("->", 1, 1, [&](TokIt tok_it) {
+			token_function::cast(tok_it);
 		});
 		while_us_find_token("^", 0, 1, [&](TokIt tok_it) {
 			token_function::dereference(tok_it);
