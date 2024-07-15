@@ -166,8 +166,50 @@ namespace braces {
 	}
 };
 
-bool is_number(const std::string &s) {
-    std::string::const_iterator it = s.begin();
+struct Type {
+	std::string name{};
+	std::string asm_name{};
+	int size{};
+	char suffix{};
+	bool is_pointer{};
+	int true_pointer_size{};
+	
+	Type() {}
+	Type(const std::string& name, const std::string& asm_name, int size, char suffix)
+		: name{name}, asm_name{asm_name}, size{size}, suffix{suffix} {}
+
+	bool operator==(const Type& type) {
+		return (
+			name == type.name &&
+			is_pointer == type.is_pointer
+		);
+	}
+
+	bool operator!=(const Type& type) {
+		return !(*this == type);
+	}
+};
+
+std::vector<Type> types{
+	{"int", ".word", sizeof(int), 'l'},
+	{"lng", ".long", sizeof(long), 'q'},
+	{"sht", ".short", sizeof(short), 'w'},
+	{"ch", ".byte", sizeof(char), 'b'}
+};
+
+std::string get_number(std::string s) {
+    for (Type type : types) {
+		if (int i = s.find(type.name); i != std::string::npos) {
+			s = s.substr(0, i);
+		}
+	}
+
+	return s;
+}
+
+bool is_number(std::string s) {
+	s = get_number(s);
+	std::string::const_iterator it = s.begin();
     while (it != s.end() && (std::isdigit(*it) || *it == '-')) ++it;
     return !s.empty() && it == s.end();
 }
@@ -206,26 +248,6 @@ bool is_variable(const std::string &str) {
 bool is_dereferenced(const std::string &str) {
 	return (str.front() == '(' && str.back() == ')');
 }
-
-struct Type {
-	std::string name{};
-	std::string asm_name{};
-	int size{};
-	char suffix{};
-	bool is_pointer{};
-	int true_pointer_size{};
-	
-	Type() {}
-	Type(const std::string& name, const std::string& asm_name, int size, char suffix)
-		: name{name}, asm_name{asm_name}, size{size}, suffix{suffix} {}
-};
-
-std::vector<Type> types{
-	{"int", ".word", 4, 'l'},
-	{"lng", ".long", 8, 'q'},
-	{"sht", ".short", 2, 'w'},
-	{"ch", ".byte", 1, 'b'}
-};
 
 std::vector<std::string> type_names() {
 	return types | std::views::transform([](const Type& type) { return type.name; }) | std::ranges::to<std::vector>();
@@ -411,7 +433,11 @@ std::string get_string_literal(const std::vector<std::string> &toks, TokIt index
 //	return str.find("(%rip)") != std::string::npos;
 //}
 
-std::string set_operand_prefix(std::string str) {
+std::string prep_asm_str(std::string str) {
+	if (is_number(str)) {
+		str = get_number(str);
+	}
+
 	if (!get_register(str).has_value() && str.back() != ')') {
 		str = '$' + str;
 	}
@@ -447,8 +473,16 @@ int get_size_of_register(const std::string &str) {
 }
 
 int get_size_of_number(const std::string &str) {
-	long long number = std::stoll(str);	
+	int i = 0;
+	for (const std::string& type_name : type_names()) {
+		if (str.find(type_name) != std::string::npos) {
+			return types[i].size;
+		}
+		i++;
+	}
 
+	long long number = std::stoll(str);	
+	
 	if (number < CHAR_MAX) return 1;
 	if (number < SHRT_MAX) return 2;
 	if (number < INT_MAX) return 4;
@@ -519,7 +553,7 @@ std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) 
 }
 
 std::string mov(const std::string &lhs, const std::string &rhs) {
-	return get_mov_instruction(lhs, rhs) + ' ' + set_operand_prefix(lhs) + ", " + set_operand_prefix(rhs);
+	return get_mov_instruction(lhs, rhs) + ' ' + prep_asm_str(lhs) + ", " + prep_asm_str(rhs);
 }
 
 void unoccupy_if_register(const std::string &reg_name) {
@@ -528,6 +562,7 @@ void unoccupy_if_register(const std::string &reg_name) {
 	}
 }
 
+/*
 std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1, bool change_reg_size = true) {
 	int rhs_size = get_size_of_operand(rhs);
 	int lhs_size = get_size_of_operand(lhs, rhs_size);
@@ -555,18 +590,18 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
 		unoccupy_if_register(lhs);
 		if (lhs_size == 4 && max_size == 8) { // int -> long
-			out.push_back("movl " + set_operand_prefix(lhs) + ", %eax\n");
+			out.push_back("movl " + prep_asm_str(lhs) + ", %eax\n");
 			out.push_back("cltq\n");
 			
 			lhs = "%rax"; // Using 'rax' is probably a problem. Do I care right now though? No.
 		} else if (lhs_size == 1 && max_size == 4) { // byte -> int
 			RegisterRef reg = get_available_register();
-			out.push_back("movsbl " + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(4) + '\n');
+			out.push_back("movsbl " + prep_asm_str(lhs) + ", " + reg->get().name_from_size(4) + '\n');
 			lhs = reg->get().name_from_size(4);
 		} else {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
-			out.push_back(get_mov_instruction(lhs_size, max_size) + ' ' + set_operand_prefix(lhs) + ", " + reg->get().name_from_size(max_size) + '\n');
+			out.push_back(get_mov_instruction(lhs_size, max_size) + ' ' + prep_asm_str(lhs) + ", " + reg->get().name_from_size(max_size) + '\n');
 			lhs = reg->get().name_from_size(max_size);
 		}
 	}
@@ -580,6 +615,7 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 
 	return { lhs, rhs };
 }
+*/
 
 Type get_type(const std::string &str) {
 	std::optional<std::reference_wrapper<Variable>> var{get_variable_by_asm_or_name(str)};
@@ -588,7 +624,7 @@ Type get_type(const std::string &str) {
 	} else if (is_number(str)) {
 		std::optional<Type> type{get_type_of_size(get_size_of_number(str)).value()};
 		if (!type.has_value()) {
-			message::error("Number too large, can't get type.");
+			message::error("Can't get type for number.");
 		}
 		return type.value();
 	} else {
@@ -641,6 +677,7 @@ namespace token_function {
 			message::error("Invalid math operator.");
 		}
 		if (cmd == "add" || cmd == "sub") {
+			/*
 			int rhs_size = get_size_of_operand(*(tok_it-1));
 			RegisterRef rhs = get_available_register(); // asm rhs (math output)
 			rhs->get().occupied = true;
@@ -650,7 +687,7 @@ namespace token_function {
 			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
 			out.push_back(
 				cmd + get_type_of_size(get_size_of_operand(lhs_rhs.second))->suffix + ' ' +
-				set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
+				prep_asm_str(lhs_rhs.first) + ", " + prep_asm_str(lhs_rhs.second) + '\n'
 			);
 			//size_t old_it_index = from_it(_us_ltoks, tok_it);
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
@@ -661,6 +698,42 @@ namespace token_function {
 				reg->get().occupied = true;
 			}
 			unoccupy_if_register(lhs_rhs.first);
+			*/
+			
+			Type lhs_type = get_type(*(tok_it-1));
+			Type rhs_type = get_type(*(tok_it+1));
+
+			if (lhs_type != rhs_type) {
+				message::error("Mismatched types in arithmatic.");
+			}
+			
+			if (is_number(*(tok_it-1)) && is_number(*(tok_it+1))) {
+				commit(
+					replace_toks(_us_ltoks, tok_it-1, tok_it+1,
+						std::to_string(std::stoll(get_number(*(tok_it-1))) + std::stoll(get_number(*(tok_it+1)))) + lhs_type.name
+					)
+				);
+				tok_it -= 1;
+				unoccupy_if_register(*(tok_it+1));
+				return;
+			}
+			
+			// Move rhs into temp register
+			RegisterRef lhs = get_available_register(); // code lhs (math output)
+			lhs->get().occupied = true;
+			std::string lhs_name = lhs->get().name_from_size(lhs_type.size);
+			out.push_back(mov(*(tok_it-1), lhs_name) + '\n');
+			
+			out.push_back(
+				cmd + rhs_type.suffix + ' ' + prep_asm_str(*(tok_it+1)) + ", " + prep_asm_str(*(tok_it-1)) + '\n'
+			);
+		
+			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, *(tok_it-1)));
+			tok_it -= 1; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
+			
+			lhs->get().occupied = false;
+			unoccupy_if_register(*(tok_it+1));
+			
 		} else if (cmd == "mul" || cmd == "div") {
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
@@ -675,9 +748,9 @@ namespace token_function {
 			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
 			
 			std::string lhs_str = get_mov_instruction(lhs_size, arithmatic_size) + ' ';
-			lhs_str += set_operand_prefix(*(tok_it-1)) +  ", " + lhs->get().name_from_size(lhs_size)  + '\n';
+			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs->get().name_from_size(lhs_size)  + '\n';
 			std::string rhs_str = get_mov_instruction(rhs_size, arithmatic_size) + ' ';
-			rhs_str += set_operand_prefix(*(tok_it+1)) +  ", " + rhs->get().name_from_size(rhs_size) + '\n';
+			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs->get().name_from_size(rhs_size) + '\n';
 			
 			out.push_back(lhs_str);
 			out.push_back(rhs_str);
@@ -718,12 +791,20 @@ namespace token_function {
 		} else {
 			current_stack_size += _type->size;
 			variables.push_back(Variable{name, _type.value(), -current_stack_size, braces::braces_end_index()});
-			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
-			std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
-			str += set_operand_prefix(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
-			out.push_back(str);
-			unoccupy_if_register(lhs_rhs.first);
-			unoccupy_if_register(lhs_rhs.second);
+			//std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
+			//std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
+			//str += prep_asm_str(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
+			//out.push_back(str);
+			//unoccupy_if_register(lhs_rhs.first);
+			//unoccupy_if_register(lhs_rhs.second);
+			
+			if (_type.value() != get_type(value)) {
+				message::error("Cant set equal two different types.");
+			}
+			
+			out.push_back(
+				mov(value, std::to_string(variables.back().stack_location) + "(%rbp)") + '\n'
+			);
 		}
 	}
 	
@@ -749,12 +830,16 @@ namespace token_function {
 	}
 	
 	void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
-		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs, get_size_of_operand(rhs), change_reg_size);
+		//std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs, get_size_of_operand(rhs), change_reg_size);
 		
-		out.push_back(mov(lhs_rhs.first, lhs_rhs.second) + '\n');
+		if (get_type(lhs) != get_type(rhs)) {
+			message::error("Cant set equal two different types.");
+		}
 		
-		unoccupy_if_register(lhs_rhs.first);
-		unoccupy_if_register(lhs_rhs.second);
+		out.push_back(mov(lhs, rhs) + '\n');
+		
+		//unoccupy_if_register(lhs_rhs.first);
+		//unoccupy_if_register(lhs_rhs.second);
 	}
 	
 	void equals(TokIt tok_it) {
@@ -773,33 +858,50 @@ namespace token_function {
 
 	void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
-			out.push_back("movl " + SYS_WRITE + ", %eax" + '\n');
-			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
-			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
-			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
-			equals(*(tok_it+2), "%edi");
-			equals(*(tok_it+3), "%rsi");
-			equals(*(tok_it+4), "%edx");
+			if (get_type(*(tok_it+2)).size != sizeof(int)) {
+				message::error("Base function 'w' parameter 1 accepts an integer.");
+			}
+			if (!get_type(*(tok_it+3)).is_pointer) {
+				message::error("Base function 'w' parameter 2 accepts a pointer.");
+			}
+			if (get_type(*(tok_it+4)).size != sizeof(int)) {
+				message::error("Base function 'w' parameter 3 accepts an integer.");
+			}
+
+			out.push_back("movl " + SYS_WRITE + ", %eax\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+2)) + "%edi\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+3)) + "%rsi\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+4)) + "%edx\n");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "r") { // READ
-			out.push_back("movl " + SYS_READ + ", %eax" + '\n');
-			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
-			//equals(*(tok_it+3), get_register("%rsi")->get().name_from_size(get_size_of_operand(*(tok_it+3))));
-			//equals(*(tok_it+4), get_register("%rdx")->get().name_from_size(get_size_of_operand(*(tok_it+4))));
-			equals(*(tok_it+2), "%edi");
-			equals(*(tok_it+3), "%rsi");
-			equals(*(tok_it+4), "%edx");
+			if (get_type(*(tok_it+2)).size != sizeof(int)) {
+				message::error("Base function 'r' parameter 1 accepts an integer.");
+			}
+			if (!get_type(*(tok_it+3)).is_pointer) {
+				message::error("Base function 'r' parameter 2 accepts a pointer.");
+			}
+			if (get_type(*(tok_it+4)).size != sizeof(int)) {
+				message::error("Base function 'r' parameter 3 accepts an integer.");
+			}
+			
+			out.push_back("movl " + SYS_READ + ", %eax\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+2)) + ", %edi\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+3)) + ", %rsi\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+4)) + ", %edx\n");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "e") { // EXIT
-			out.push_back("movl " + SYS_EXIT + ", %eax" + '\n');
-			//equals(*(tok_it+2), get_register("%rdi")->get().name_from_size(get_size_of_operand(*(tok_it+2))));
-			equals(*(tok_it+2), "%edi");
+			if (get_type(*(tok_it+2)).size != sizeof(int)) {
+				message::error("Base function 'e' accepts an integer.");
+			}
+
+			out.push_back("movl " + SYS_EXIT + ", %eax\n");
+			out.push_back("movl " + prep_asm_str(*(tok_it+2)) + ", %edi\n");
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 		}
@@ -840,7 +942,7 @@ namespace token_function {
 		
 		std::string ret = std::string{"mov"} + type.suffix;
 		RegisterRef rax = get_register("rax");
-		ret += ' ' + set_operand_prefix(*(tok_it+1)) + ", " + rax->get().name_from_size(type.size) + '\n';
+		ret += ' ' + prep_asm_str(*(tok_it+1)) + ", " + rax->get().name_from_size(type.size) + '\n';
 		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
@@ -886,7 +988,7 @@ namespace token_function {
 		return "";
 	}
 	
-	void conditional(std::string rhs, std::string lhs, std::string con, int label) {
+	void conditional(std::string lhs, std::string rhs, std::string con, int label) {
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
@@ -901,13 +1003,13 @@ namespace token_function {
 			change_to_reg(lhs);
 		}
 		
-		std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
+		//std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
 		
-		Type type = get_type(lhs_rhs.second);
+		Type type = get_type(lhs);
 		
 		// Insert before call instruction
 		out.push_back(std::string{"cmp"} + type.suffix +
-			' ' + set_operand_prefix(lhs_rhs.first) + ", " + set_operand_prefix(lhs_rhs.second) + '\n'
+			' ' + prep_asm_str(lhs) + ", " + prep_asm_str(rhs) + '\n'
 		);
 
 		out.push_back('j' + con + " .L" + std::to_string(label) + '\n');
