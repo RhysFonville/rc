@@ -1257,7 +1257,11 @@ int begin_compile(std::vector<std::string> args) {
 				break;
 			} else {
 				l.erase(l.begin()+chunk.position());
-				l.erase(l.begin()+l.find(')', std::distance(l.begin(), l.begin()+chunk.position())));
+				size_t end = l.find(')', std::distance(l.begin(), l.begin()+chunk.position()));
+				if (end == std::string::npos) {
+					message::error("No matching ending parenthesis found.");
+				}
+				l.erase(l.begin()+end);
 				chunk = get_innermost_parentheses(l);
 				no_parentheses = (chunk.str().find('(') == std::string::npos);
 			}
