@@ -677,29 +677,6 @@ namespace token_function {
 			message::error("Invalid math operator.");
 		}
 		if (cmd == "add" || cmd == "sub") {
-			/*
-			int rhs_size = get_size_of_operand(*(tok_it-1));
-			RegisterRef rhs = get_available_register(); // asm rhs (math output)
-			rhs->get().occupied = true;
-			std::string rhs_name =  rhs->get().name_from_size(rhs_size);
-			out.push_back(mov(*(tok_it-1), rhs_name) + '\n');
-			
-			std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(*(tok_it+1), rhs_name, 4);
-			out.push_back(
-				cmd + get_type_of_size(get_size_of_operand(lhs_rhs.second))->suffix + ' ' +
-				prep_asm_str(lhs_rhs.first) + ", " + prep_asm_str(lhs_rhs.second) + '\n'
-			);
-			//size_t old_it_index = from_it(_us_ltoks, tok_it);
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs_rhs.second));
-			tok_it -= 1; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
-			
-			rhs->get().occupied = false;
-			if (RegisterRef reg = get_register(lhs_rhs.second); reg.has_value()) {
-				reg->get().occupied = true;
-			}
-			unoccupy_if_register(lhs_rhs.first);
-			*/
-			
 			Type lhs_type = get_type(*(tok_it-1));
 			Type rhs_type = get_type(*(tok_it+1));
 
@@ -735,6 +712,8 @@ namespace token_function {
 			unoccupy_if_register(*(tok_it+1));
 			
 		} else if (cmd == "mul" || cmd == "div") {
+			message::error("Multiplication and division not yet supported.");
+
 			RegisterRef lhs = get_register("rax");
 			lhs->get().occupied = true;
 			RegisterRef rhs = get_register("rdx");
