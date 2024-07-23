@@ -1,0 +1,3 @@
+/home/rhys/progs/rc/build/CMakeFiles/rc.dir
+/home/rhys/progs/rc/build/CMakeFiles/edit_cache.dir
+/home/rhys/progs/rc/build/CMakeFiles/rebuild_cache.dir

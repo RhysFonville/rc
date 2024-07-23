@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/rc.dir/main.cpp.o -o /home/rhys/progs/rc/rc 

@@ -1,4 +1,4 @@
-#include "compiler.cpp"
+#include "compiler.h"
 
 int main(int argc, char* argv[]) {
 	std::vector<std::string> args;
