@@ -8,10 +8,32 @@
 #include <ranges>
 #include <utility>
 #include <regex>
+#include <memory>
+#include <variant>
 #include "preprocessor.h" // Including in here stops weird redefinition errors for util.h
 
 #define DATA_ASM (std::ranges::find(out, ".data\n"))
-#define TEXT_ASM (std::ranges::find(out, ".text\n"))
+#define TEXT_ASM (std::ranges::find(out, ".text\n")) 
+
+// Returns optional's value but throws with the error message if there was no value.
+template <typename T>
+T & expect(std::optional<T>& opt, const std::string& error_message) noexcept {
+	if (!opt.has_value()) {
+		message::error(error_message);
+	}
+	
+	return opt.value();
+}
+
+// Returns optional's value but throws with the error message if there was no value.
+template <typename T>
+T expect(const std::optional<T>& opt, const std::string& error_message) noexcept {
+	if (!opt.has_value()) {
+		message::error(error_message);
+	}
+	
+	return opt.value();
+}
 
 struct Register {
 	struct Names {
@@ -166,49 +188,77 @@ namespace braces {
 	}
 };
 
-struct Type {
+struct BaseType {
 	std::string name{};
 	std::string asm_name{};
 	int size{};
-	char suffix{};
-	bool is_pointer{};
-	int true_pointer_size{};
 	
-	Type() {}
-	Type(const std::string& name, const std::string& asm_name, int size, char suffix)
-		: name{name}, asm_name{asm_name}, size{size}, suffix{suffix} {}
-
-	bool operator==(const Type& type) {
-		return (
-			name == type.name &&
-			is_pointer == type.is_pointer
-		);
+	bool operator==(const BaseType& base_type) const noexcept {
+		return (size == base_type.size);
 	}
-
-	bool operator!=(const Type& type) {
-		return !(*this == type);
+	bool operator!=(const BaseType& base_type) const noexcept {
+		return !(*this == base_type);
 	}
-/*
-	void operator=(const Type& type) {
-		name = type.name;
-		asm_name = type.asm_name;
-		size = type.size;
-		suffix = type.suffix;
-		is_pointer = type.is_pointer;
-		true_pointer_size = type.true_pointer_size;
-	}
-*/
 };
 
-static std::vector<Type> types{
-	{"int", ".word", sizeof(int), 'l'},
-	{"lng", ".long", sizeof(long), 'q'},
-	{"sht", ".short", sizeof(short), 'w'},
-	{"ch", ".byte", sizeof(char), 'b'}
+struct Type {
+	const std::variant<const BaseType, const std::shared_ptr<const Type>> real_type{};
+
+	Type() {}
+	Type(const BaseType& base_type) : real_type{base_type} {}
+	Type(const std::shared_ptr<const Type>& pointer_to) : real_type{pointer_to} {}
+	Type(const std::variant<const BaseType, const std::shared_ptr<const Type>>& real_type) : real_type{real_type} {}
+	
+	void operator=(const Type&) = delete;
+	
+	friend std::ostream & operator<<(std::ostream& os, const Type& type);
+
+	bool is_pointer() const noexcept {
+		return std::holds_alternative<const std::shared_ptr<const Type>>(real_type);
+	}
+
+	bool operator==(const Type& type) const {
+		if (is_pointer() && type.is_pointer()) {
+			return *std::get<const std::shared_ptr<const Type>>(real_type) == *std::get<const std::shared_ptr<const Type>>(type.real_type);
+		} else if (!is_pointer() && !type.is_pointer()) {
+			return std::get<const BaseType>(real_type) == std::get<const BaseType>(type.real_type);
+		} else {
+			return false;
+		}
+	}
+
+	bool operator!=(const Type& type) const {
+		return !(*this == type);
+	}
+
+	int get_size() const {
+		if (is_pointer()) {
+			return sizeof(long);
+		} else {
+			return std::get<const BaseType>(real_type).size;
+		}
+	}
+};
+
+std::ostream & operator<<(std::ostream& os, const Type& type) {
+	if (type.is_pointer()) {
+		os << "pointer to > " << *std::get<const std::shared_ptr<const Type>>(type.real_type);
+	} else {
+		os << std::get<const BaseType>(type.real_type).name;
+	}
+	
+	return os;
+}
+
+static std::vector<BaseType> base_types{
+	{"int", ".word", sizeof(int)},
+	{"lng", ".long", sizeof(long)},
+	{"sht", ".short", sizeof(short)},
+	{"ch", ".byte", sizeof(char)}
 };
 
 static std::string get_number(std::string s) {
-    for (Type type : types) {
+    for (BaseType type : base_types) {
 		if (int i = s.find(type.name); i != std::string::npos) {
 			s = s.substr(0, i);
 		}
@@ -260,78 +310,84 @@ static bool is_dereferenced(const std::string &str) {
 }
 
 static std::vector<std::string> type_names() {
-	return types | std::views::transform([](const Type& type) { return type.name; }) | std::ranges::to<std::vector>();
+	return base_types | std::views::transform([](const BaseType& type) { return type.name; }) | std::ranges::to<std::vector>();
 }
 
-static std::optional<Type> get_type_of_size(int size) {
-	for (const Type& type : types) {
-		if (type.size == size) {
-			return type;
-		}
-	}
-
-	return std::nullopt;
+static std::optional<Type> get_type_by_size(int size) {
+	auto it{std::ranges::find_if(base_types, [&](auto type){return type.size == size;})};
+	return (it != base_types.end() ? std::optional{*it} : std::nullopt);
 }
 
-static std::optional<Type> get_type_of_name(const std::string& name) {
-	for (const Type& type : types) {
-		if (type.name == name) {
-			return type;
-		}
-	}
-
-	return std::nullopt;
+static std::optional<Type> get_type_by_name(const std::string& name) {
+	auto it{std::ranges::find_if(base_types, [&](auto type){return type.name == name;})};
+	return (it != base_types.end() ? std::optional{*it} : std::nullopt);
 }
+
+#define NO_STACK INT_MAX
 
 struct Variable {
-	std::string name;
+	std::string name{};
 	Type type{};
-	int stack_location;
-	int braces_index;
-	std::vector<std::string> type_qualifiers;
+	int stack_location{};
+	int braces_index{};
+	std::vector<std::string> type_qualifiers{};
+	
+	void operator=(const Variable&) = delete;
+	friend std::ostream & operator<<(std::ostream& os, const Variable& var) noexcept;
+
+	Variable() {}
+	Variable(const std::string& name, const Type& type, int stack_location, int braces_index)
+		: name{name}, type{type}, stack_location{stack_location}, braces_index{braces_index}, type_qualifiers{} { }
+	Variable(const std::string& name, const Type& type, int stack_location, int braces_index, const std::vector<std::string>& type_qualifiers)
+		: name{name}, type{type}, stack_location{stack_location}, braces_index{braces_index}, type_qualifiers{type_qualifiers} { }
 };
 
-static std::vector<Variable> variables;
+std::ostream & operator<<(std::ostream& os, const Variable& var) noexcept {
+	os << "Variable " << var.type << ": " << var.name;
+	return os;
+}
 
-static std::vector<std::pair<std::string, Type>> dereferenced_type_correspondant{};
-static std::vector<std::pair<std::string, Type>> addressed_type_correspondant{};
+static std::vector<std::shared_ptr<Variable>> variables{}; // Has to be pointer to be able to erase
+
+static std::vector<std::pair<std::string, const Type>> dereferenced_type_correspondant{};
+static std::vector<std::pair<std::string, const Type>> addressed_type_correspondant{};
 
 static std::vector<std::string> variable_names() {
 	std::vector<std::string> names{};
-	for (Variable &var : variables) {
-		names.push_back(var.name);
+	for (const std::shared_ptr<Variable>& var : variables) {
+		names.push_back(var->name);
 	}
 	return names;
 }
 
 static std::vector<int> variable_stack_locations() {
 	std::vector<int> stack_locations{};
-	for (Variable &var : variables) {
-		stack_locations.push_back(var.stack_location);
+	for (const std::shared_ptr<Variable>& var : variables) {
+		stack_locations.push_back(var->stack_location);
 	}
 	return stack_locations;
 }
 
 static std::vector<Type> variable_types() {
 	std::vector<Type> types{};
-	for (Variable &var : variables) {
-		types.push_back(var.type);
+	for (const std::shared_ptr<Variable>& var : variables) {
+		types.push_back(var->type);
 	}
 	return types;
 }
 
 static std::vector<int> variable_braces_index() {
 	std::vector<int> braces_indices{};
-	for (Variable &var : variables) {
-		braces_indices.push_back(var.braces_index);
+	for (const std::shared_ptr<Variable>& var : variables) {
+		braces_indices.push_back(var->braces_index);
 	}
 	return braces_indices;
 }
 
 static std::vector<std::vector<std::string>> variable_type_qualifiers() {
 	std::vector<std::vector<std::string>> type_qualifiers{};
-	for (Variable &var : variables) {
-		type_qualifiers.push_back(var.type_qualifiers);
+	for (const std::shared_ptr<Variable>& var : variables) {
+		type_qualifiers.push_back(var->type_qualifiers);
 	}
 	return type_qualifiers;
 }
@@ -341,8 +397,8 @@ static std::optional<std::reference_wrapper<Variable>> get_variable_by_name(cons
 		return std::nullopt;
 	}
 
-	for (Variable &var : variables) {
-		if (var.name == name) return std::optional<std::reference_wrapper<Variable>>{var};
+	for (std::shared_ptr<Variable>& var : variables) {
+		if (var->name == name) return std::optional<std::reference_wrapper<Variable>>{*var};
 	}
 
 	return std::nullopt;
@@ -365,12 +421,12 @@ static std::optional<std::reference_wrapper<Variable>> get_variable_by_asm(const
 	}
 	*/
 	
-	for (Variable &var : variables) {
+	for (std::shared_ptr<Variable>& var : variables) {
 		std::string before_parenthesis = str.substr(0, str.find('('));
 		if (is_global_variable(str)) {
-			if (var.name == before_parenthesis) return std::optional<std::reference_wrapper<Variable>>{var};
+			if (var->name == before_parenthesis) return std::optional<std::reference_wrapper<Variable>>{*var};
 		} else if (is_stack_variable(str)) {
-			if (var.stack_location == std::stoi(before_parenthesis)) return std::optional<std::reference_wrapper<Variable>>{var};
+			if (var->stack_location == std::stoi(before_parenthesis)) return std::optional<std::reference_wrapper<Variable>>{*var};
 		}
 	}
 
@@ -463,9 +519,9 @@ static int get_size_of_asm_variable(const std::string &str) {
 		int stack_offset = std::stoi(str.substr(1, str.find('(')-1));
 		int var_vec_index = index_of(variable_stack_locations(), -stack_offset);
 		
-		return variables[var_vec_index].type.size;
+		return variables[var_vec_index]->type.get_size();
 	} else if (str.find("%rip") != std::string::npos) {
-		return variables[index_of(variable_names(), str.substr(0, str.find('(')))].type.size;
+		return variables[index_of(variable_names(), str.substr(0, str.find('(')))]->type.get_size();
 	}
 	
 	message::error("Variable does not exist.");
@@ -489,41 +545,83 @@ static int get_size_of_number(const std::string &str) {
 	int i = 0;
 	for (const std::string& type_name : type_names()) {
 		if (str.find(type_name) != std::string::npos) {
-			return types[i].size;
+			return base_types[i].size;
 		}
 		i++;
 	}
 
 	long long number = std::stoll(str);	
 	
-	if (number < CHAR_MAX) return 1;
-	if (number < SHRT_MAX) return 2;
-	if (number < INT_MAX) return 4;
-	if (number < LONG_MAX) return 8;
+	if (number < CHAR_MAX) return sizeof(char);
+	if (number < SHRT_MAX) return sizeof(short);
+	if (number < INT_MAX) return sizeof(int);
+	if (number < LONG_MAX) return sizeof(long);
 
 	message::error("Number out of bounds.");
 	return 0;
 }
 
-static Type get_type(const std::string &str) {
+static std::optional<Type> get_type_opt(const std::string &str) {
+	/*if (RegisterRef reg = get_register(str); reg.has_value()) {
+		return get_type_by_size(get_size_of_register(str));
+	}*/
+
 	std::optional<std::reference_wrapper<Variable>> var{get_variable_by_asm_or_name(str)};
 	if (var.has_value()) {
 		return var->get().type;
 	} else if (is_number(str)) {
-		std::optional<Type> type{get_type_of_size(get_size_of_number(str)).value()};
-		if (!type.has_value()) {
-			message::error("Can't get type for number.");
-		}
-		return type.value();
-	} else if (auto it = std::ranges::find_if(dereferenced_type_correspondant, [&](auto p){ return p.first == str; }); it != dereferenced_type_correspondant.end()) {
-		return it->second;
+		return get_type_by_size(get_size_of_number(str));
+	} else if (auto it = std::ranges::find_if(dereferenced_type_correspondant, [&](auto p){ return str.find(p.first) != std::string::npos; }); it != dereferenced_type_correspondant.end()) {
+		return *std::get<const std::shared_ptr<const Type>>(it->second.real_type);
 	} else if (auto it = std::ranges::find_if(addressed_type_correspondant, [&](auto p){ return p.first == str; }); it != addressed_type_correspondant.end()) {
-		return it->second;
+		return Type{std::make_shared<const Type>(it->second)};
+	}
+
+	return std::nullopt;
+}
+
+static Type get_type(const std::string& str) {
+	return expect(get_type_opt(str), "Can't get type");
+}
+
+static Type get_type(TokIt tok_it, bool by_name = false, BaseType pointer_base_type = BaseType{}) {
+	if (*(tok_it+1) == "^^") {
+		if (by_name) {
+			return Type{std::make_shared<const Type>(get_type(
+				tok_it+1,
+				true,
+				(pointer_base_type != BaseType() ? pointer_base_type : std::get<const BaseType>(expect(get_type_by_name(*tok_it), "Can't get pointer base type by name.").real_type))
+			))};
+		} else {
+			message::error("Unexpected token '^^'.");
+		}
 	} else {
-		message::error("Can't get type");
+		if (*(tok_it+1) == "->") {
+			if (!by_name) message::error("Unnecessary to cast type by name.");
+			return get_type(tok_it+2, true);
+		} else {
+			if (by_name) {
+				std::optional<Type> type{get_type_by_name(*tok_it)};
+				if (!type.has_value()) {
+					if (pointer_base_type != BaseType{}) {
+						return Type{pointer_base_type};
+					} else {
+						message::error("Can't get type by name.");
+					}
+				} else {
+					return type.value();
+				}
+			} else {
+				return get_type(*tok_it);
+			}
+		}
 	}
 	
 	return Type{};
+}
+
+static Type get_type_by_name(TokIt tok_it) {
+	return get_type(tok_it, true);
 }
 
 /*
@@ -580,14 +678,13 @@ static std::string get_mov_instruction(int lhs, int rhs) {
 	if (lhs < rhs)
 		return sign_extension_mov(lhs, rhs);
 	else
-		return std::string{"mov"} + (rhs != -1 ? get_type_of_size(rhs)->suffix : 'q');
+		return std::string{"mov"} + (rhs != -1 ? size_to_letter(rhs) : size_to_letter(sizeof(long)));
 }
 
 static std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
 	Type rhs_type = get_type(rhs);
 	Type lhs_type = get_type(lhs);
-	return get_mov_instruction((lhs_type.true_pointer_size != -1 ? lhs_type.true_pointer_size : lhs_type.size),
-							(rhs_type.true_pointer_size != -1 ? rhs_type.true_pointer_size : rhs_type.size));
+	return get_mov_instruction(lhs_type.get_size(), rhs_type.get_size());
 }
 
 static std::string mov(const std::string &lhs, const std::string &rhs) {
@@ -669,32 +766,41 @@ static std::smatch get_innermost_parentheses(const std::string& str) {
 }
 
 namespace token_function {
-	static void dereference(TokIt &tok_it) {
+	static void dereference(TokIt tok_it) {
 		_us_ltoks.erase(tok_it);
-		std::string var_name = "";
-		std::string before_parenthesis = tok_it->substr(0, tok_it->find('('));
-		if (is_stack_variable(*tok_it)) {
-			var_name = variables[index_of(variable_stack_locations(), std::stoi(before_parenthesis))].name;
-		} else if (is_global_variable(*tok_it)) {
-			var_name = before_parenthesis;
-		} else {
+
+		Type type = get_type(*tok_it);
+		std::cout << "Dereference: " << type << std::endl;
+		if (!type.is_pointer()) {
 			message::error("Only pointers can be dereferenced");
 		}
-
+		
+		int deref_size = std::get<const std::shared_ptr<const Type>>(type.real_type)->get_size();
+		
 		RegisterRef reg = get_available_register();
 		reg->get().occupied = true;
-		std::string reg_name = reg->get().name_from_size(8);
+		std::string reg_name = reg->get().names.q;
 		out.push_back("movq " + *(tok_it) + ", " + reg_name + '\n');
-		commit(replace_tok(_us_ltoks, tok_it, reg_name));
-		commit(replace_tok(_us_ltoks, tok_it, '(' + *tok_it + ')'));
-		dereferenced_type_correspondant.push_back(std::make_pair(reg_name, get_variable_by_name(var_name)->get().type));
+		
+		std::string new_reg_name = reg->get().name_from_size(deref_size);
+		out.push_back(get_mov_instruction(sizeof(long), deref_size) + " (" + reg_name + "), " + new_reg_name + '\n');
+		
+		dereferenced_type_correspondant.push_back(std::make_pair(new_reg_name, type));
+		
+		commit(replace_tok(_us_ltoks, tok_it, new_reg_name));
 	}
 
 	static void address_of(TokIt tok_it) {
 		RegisterRef reg = get_available_register();
-		out.push_back("leaq " + *(tok_it+1) + ", " + reg->get().names.q + '\n');
+		reg->get().occupied = true;
+		std::string reg_name = reg->get().names.q;
+		out.push_back("leaq " + *(tok_it+1) + ", " + reg_name + '\n');
 		
-		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg->get().names.q));
+		std::cout << "Address of: " << get_type(*(tok_it+1)) << std::endl;
+		
+		addressed_type_correspondant.push_back(std::make_pair(reg_name, get_type(*(tok_it+1))));
+		
+		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg_name));
 	}
 
 	static void math(TokIt &tok_it) {
@@ -721,7 +827,7 @@ namespace token_function {
 			if (is_number(*(tok_it-1)) && is_number(*(tok_it+1))) {
 				commit(
 					replace_toks(_us_ltoks, tok_it-1, tok_it+1,
-						std::to_string(std::stoll(get_number(*(tok_it-1))) + std::stoll(get_number(*(tok_it+1)))) + lhs_type.name
+						std::to_string(std::stoll(get_number(*(tok_it-1))) + std::stoll(get_number(*(tok_it+1)))) + std::get<const BaseType>(lhs_type.real_type).name
 					)
 				);
 				tok_it -= 1;
@@ -732,11 +838,11 @@ namespace token_function {
 			// Move rhs into temp register
 			RegisterRef lhs = get_available_register(); // code lhs (math output)
 			lhs->get().occupied = true;
-			std::string lhs_name = lhs->get().name_from_size(lhs_type.size);
+			std::string lhs_name = lhs->get().name_from_size(lhs_type.get_size());
 			out.push_back(mov(*(tok_it-1), lhs_name) + '\n');
 			
 			out.push_back(
-				cmd + rhs_type.suffix + ' ' + prep_asm_str(*(tok_it+1)) + ", " + prep_asm_str(*(tok_it-1)) + '\n'
+				cmd + size_to_letter(rhs_type.get_size()) + ' ' + prep_asm_str(*(tok_it+1)) + ", " + prep_asm_str(*(tok_it-1)) + '\n'
 			);
 		
 			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, *(tok_it-1)));
@@ -778,6 +884,7 @@ namespace token_function {
 		}
 	}
 
+/*
 	static void cast(TokIt tok_it) {
 		std::optional<Variable> var = get_variable_by_asm(*(tok_it-1));
 		if (var.has_value()) {
@@ -789,80 +896,67 @@ namespace token_function {
 			message::error("Invalid token to cast.");	
 		}
 	}
-
-	static void variable_declaration(const std::string &type, const std::string &name, std::string value,
-						   const std::string &current_function, int &current_stack_size, bool is_pointer) {
-		std::optional<Type> _type = get_type_of_name(type);
+*/	
+	
+	static void variable_declaration(TokIt tok_it, const std::string& current_function, int current_stack_size) {
+		std::optional<Type> _type = get_type_by_name(tok_it);
 		if (!_type.has_value()) {
-			message::error("Type does not exist.");
+			message::error("Cannot declare variable. Type does not exist.");
 		}
-
+		
+		// Combine type toks into one
+		commit(replace_toks(_us_ltoks, from_it(_us_ltoks, tok_it), from_it(_us_ltoks, find_tok(_us_ltoks, ":", tok_it)), combine_toks(tok_it, find_tok(_us_ltoks, ":", tok_it)+1)));
+		
+		Type other{get_type(tok_it+2)};
+		if (_type.value() != other) {
+			std::cout << _type.value() << std::endl;
+			std::cout << other << std::endl;
+			message::error("Incompatible types for variable declaration.");
+		}
+			
 		if (DATA_ASM == out.end()) {
 			out.insert(TEXT_ASM, ".data\n");
 		}
 		
-		if (is_pointer) {
-			variable_declaration("lng", name, value, current_function, current_stack_size, false);
-			variables.back().type.is_pointer = true;
-			variables.back().type.true_pointer_size = _type->size;
-		} else if (current_function.empty()) {
-			out.insert(DATA_ASM+1, ".globl " + name + '\n');
+		if (current_function.empty()) {
+			out.insert(DATA_ASM+1, ".globl " + *(tok_it+1) + '\n');
 			out.insert(DATA_ASM+2, ".align 8\n");
-			out.insert(DATA_ASM+3, ".type " + name + ", @object\n");
-			out.insert(DATA_ASM+4, ".size " + name + ", " + std::to_string(_type->size) + '\n');
-			out.insert(DATA_ASM+5, name + ":\n");
+			out.insert(DATA_ASM+3, ".type " + *(tok_it+1) + ", @object\n");
+			out.insert(DATA_ASM+4, ".size " + *(tok_it+1) + ", " + std::to_string(_type->get_size()) + '\n');
+			out.insert(DATA_ASM+5, *(tok_it+1) + ":\n");
 			
-			out.insert(DATA_ASM+6, _type->asm_name + ' ' + value + '\n');
+			out.insert(DATA_ASM+6, std::get<const BaseType>(get_type_by_size(_type->get_size())->real_type).asm_name + ' ' + *(tok_it+2) + '\n');
 			
-			variables.push_back(Variable{name, _type.value(), INT_MAX, braces::braces_end_index()});
+			variables.push_back(std::make_shared<Variable>(Variable{
+				*(tok_it+1),
+				_type.value(),
+				NO_STACK,
+				braces::braces_end_index()
+			}));
 		} else {
-			current_stack_size += _type->size;
-			variables.push_back(Variable{name, _type.value(), -current_stack_size, braces::braces_end_index()});
-			//std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(value, name);
-			//std::string str = get_mov_instruction(lhs_rhs.first, lhs_rhs.second) + ' ';
-			//str += prep_asm_str(lhs_rhs.first) + ", -" +  std::to_string(current_stack_size) + "(%rbp)\n";
-			//out.push_back(str);
-			//unoccupy_if_register(lhs_rhs.first);
-			//unoccupy_if_register(lhs_rhs.second);
-			
-			if (_type.value() != get_type(value)) {
-				message::error("Cant set equal two different types.");
-			}
+			current_stack_size += _type->get_size();
+			variables.push_back(std::make_shared<Variable>(Variable{
+				*(tok_it+1),
+				_type.value(),
+				-current_stack_size,
+				braces::braces_end_index()
+			}));
 			
 			out.push_back(
-				mov(value, std::to_string(variables.back().stack_location) + "(%rbp)") + '\n'
+				mov(*(tok_it+2), std::to_string(variables.back()->stack_location) + "(%rbp)") + '\n'
 			);
 		}
-	}
-	
-	static void variable_declaration(TokIt tok_it, const std::string &current_function, int &current_stack_size) {
-		bool is_pointer = false;
-		if (tok_it != _us_ltoks.begin()) {
-			is_pointer = (*(tok_it-1) == "^^");
-		}
-		
-		std::string value = "0";
-		if (tok_it+2 != _us_ltoks.end()) {
-			value = *(tok_it+2);
-		}
-		
-		variable_declaration(*tok_it, *(tok_it+1), value, current_function, current_stack_size, is_pointer);
 		
 		std::vector<std::string> type_qualifiers{_us_ltoks.begin(), tok_it};
-		variables.back().type_qualifiers = type_qualifiers;
+		variables.back()->type_qualifiers = type_qualifiers;
 	}
 	
 	static void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
-		//std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs, get_size_of_operand(rhs), change_reg_size);
-		
 		if (get_type(lhs) != get_type(rhs)) {
 			message::error("Cant set equal two different types.");
 		}
 		
 		out.push_back(mov(lhs, rhs) + '\n');
-		
-		//unoccupy_if_register(lhs_rhs.first);
-		//unoccupy_if_register(lhs_rhs.second);
 	}
 	
 	static void equals(TokIt tok_it) {
@@ -881,13 +975,13 @@ namespace token_function {
 
 	static void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
-			if (get_type(*(tok_it+2)).size != sizeof(int)) {
+			if (get_type(tok_it+2) == get_type_by_size(sizeof(int))) {
 				message::error("Base function 'w' parameter 1 accepts an integer.");
 			}
-			if (!get_type(*(tok_it+3)).is_pointer) {
+			if (!get_type(tok_it+3).is_pointer()) {
 				message::error("Base function 'w' parameter 2 accepts a pointer.");
 			}
-			if (get_type(*(tok_it+4)).size != sizeof(int)) {
+			if (get_type(tok_it+4) == get_type_by_size(sizeof(int))) {
 				message::error("Base function 'w' parameter 3 accepts an integer.");
 			}
 
@@ -900,13 +994,13 @@ namespace token_function {
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "r") { // READ
-			if (get_type(*(tok_it+2)).size != sizeof(int)) {
+			if (get_type(tok_it+2) == get_type_by_size(sizeof(int))) {
 				message::error("Base function 'r' parameter 1 accepts an integer.");
 			}
-			if (!get_type(*(tok_it+3)).is_pointer) {
+			if (!get_type(tok_it+3).is_pointer()) {
 				message::error("Base function 'r' parameter 2 accepts a pointer.");
 			}
-			if (get_type(*(tok_it+4)).size != sizeof(int)) {
+			if (get_type(tok_it+4) == get_type_by_size(sizeof(int))) {
 				message::error("Base function 'r' parameter 3 accepts an integer.");
 			}
 			
@@ -919,7 +1013,7 @@ namespace token_function {
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "e") { // EXIT
-			if (get_type(*(tok_it+2)).size != sizeof(int)) {
+			if (get_type(tok_it+2) == get_type_by_size(sizeof(int))) {
 				message::error("Base function 'e' accepts an integer.");
 			}
 
@@ -961,11 +1055,11 @@ namespace token_function {
 	}
 	
 	static void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
-		Type type = get_type(*(tok_it+1));
+		Type type = get_type(tok_it+1);
 		
-		std::string ret = std::string{"mov"} + type.suffix;
+		std::string ret = std::string{"mov"} + size_to_letter(type.get_size());
 		RegisterRef rax = get_register("rax");
-		ret += ' ' + prep_asm_str(*(tok_it+1)) + ", " + rax->get().name_from_size(type.size) + '\n';
+		ret += ' ' + prep_asm_str(*(tok_it+1)) + ", " + rax->get().name_from_size(type.get_size()) + '\n';
 		out.push_back(ret);
 		out.push_back("leave\n");
 		out.push_back("ret\n");
@@ -1031,7 +1125,7 @@ namespace token_function {
 		Type type = get_type(lhs);
 		
 		// Insert before call instruction
-		out.push_back(std::string{"cmp"} + type.suffix +
+		out.push_back(std::string{"cmp"} + size_to_letter(type.get_size()) +
 			' ' + prep_asm_str(lhs) + ", " + prep_asm_str(rhs) + '\n'
 		);
 
@@ -1101,8 +1195,7 @@ namespace token_function {
 				braces::braces.push_back(Brace(Brace::State::Close, open_brace.type, index, open_brace.type_index));
 				
 				for (int i = 0; i < variables.size(); i++) {
-					//for (int i = from_it(braces::braces, std::find(braces::braces.rbegin(), braces::braces.rend(), open_brace).base()); i < braces::braces.size(); i++) {
-					if (variables[i].braces_index == index && variables[i].stack_location < 0) {
+					if (variables[i]->braces_index == index && variables[i]->stack_location < 0) {
 						variables.erase(variables.begin()+i);
 					}
 				}
@@ -1127,12 +1220,11 @@ namespace token_function {
 				str = ".asciz";
 			}
 			
-			Type type{get_type_of_name("ch").value()};
-			type.is_pointer = true;
+			Type type{std::make_shared<const Type>(get_type_by_size(sizeof(char)).value())};
 			
 			out.insert(DATA_ASM+2, str + ' ' + combine_toks(tok_it-2, tok_it+1) + std::string(1, '\n'));
-			commit(replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it, ".STR" + std::to_string(str_index) + "(%rip)"));
-			variables.push_back(Variable{".STR" + std::to_string(str_index), type, -1, braces::braces_end_index()});
+			commit(replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it, ".STR" + std::to_string(str_index)));
+			variables.push_back(std::make_shared<Variable>(Variable{".STR" + std::to_string(str_index), type, NO_STACK, braces::braces_end_index()}));
 			str_index++;
 		}
 		in_quote = !in_quote;
@@ -1204,15 +1296,8 @@ static int begin_compile(std::vector<std::string> args) {
 				token_function::function_call(tok_it);
 			});
 			while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
-				if (tok_it != _us_ltoks.begin()) {
-					if (get_type_of_name(*(tok_it-1)).has_value()) {
-						message::error("Cannot define variable. Variable of this name already exists.");
-						return;
-					}
-				}
-		
 				size_t vec_index = index_of(variable_names(), *tok_it);
-				if (variable_stack_locations()[vec_index] != INT_MAX) {
+				if (variable_stack_locations()[vec_index] != NO_STACK) {
 					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)"));
 				} else {
 					*tok_it += "(%rip)";
@@ -1220,7 +1305,7 @@ static int begin_compile(std::vector<std::string> args) {
 				}
 			});
 			while_us_find_token("->", 1, 1, [&](TokIt tok_it) {
-				token_function::cast(tok_it);
+				//token_function::cast(tok_it);
 			});
 			while_us_find_token("^", 0, 1, [&](TokIt tok_it) {
 				token_function::dereference(tok_it);
@@ -1235,6 +1320,11 @@ static int begin_compile(std::vector<std::string> args) {
 				token_function::equals(tok_it);
 			});
 			while_us_find_tokens(type_names(), 0, 1, [&](TokIt tok_it) {
+				if (get_variable_by_name(*(tok_it+1)).has_value()) {
+					message::error("Cannot define variable. Variable of this name already exists.");
+					return;
+				}
+				
 				size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
 				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 			});
@@ -1281,7 +1371,8 @@ static int begin_compile(std::vector<std::string> args) {
 		}
 		
 		disallowed_toks.clear();
-
+		dereferenced_type_correspondant.clear();
+		addressed_type_correspondant.clear();
 		for (Register &reg : registers) {
 			reg.occupied = false;
 		}
