@@ -1,14 +1,14 @@
 // TEST #2 - MATH
 
 #main
-	ch nl 10
+	ch: nl 10
 
-	int i 5int
-	ch c 2
-	lng l 48lng
-	sht s 8sht
+	int: i 5int
+	ch: c 2
+	lng: l 48lng
+	sht: s 8sht
 	
-	i = (c+4)->ch
+	i = (c+4)->int
 	i = i+l->int
 	>w 1int &i (1+c-2)->int
 	>w 1int &nl 1int

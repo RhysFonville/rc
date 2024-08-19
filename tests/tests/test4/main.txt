@@ -1,7 +1,7 @@
 // TEST #4 - ELSE STATEMENTS
 
 #main
-	int a 0int
+	int: a 0int
 	
 	1 == 2 ?
 		a = 48int

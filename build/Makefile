@@ -129,6 +129,19 @@ rc/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rc.dir/build.make CMakeFiles/rc.dir/build
 .PHONY : rc/fast
 
+#=============================================================================
+# Target rules for targets named testrc
+
+# Build rule for target.
+testrc: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 testrc
+.PHONY : testrc
+
+# fast build rule for target.
+testrc/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/build
+.PHONY : testrc/fast
+
 main.o: main.cpp.o
 .PHONY : main.o
 
@@ -153,6 +166,30 @@ main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rc.dir/build.make CMakeFiles/rc.dir/main.cpp.s
 .PHONY : main.cpp.s
 
+tests/test_compiler.o: tests/test_compiler.cpp.o
+.PHONY : tests/test_compiler.o
+
+# target to build an object file
+tests/test_compiler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/tests/test_compiler.cpp.o
+.PHONY : tests/test_compiler.cpp.o
+
+tests/test_compiler.i: tests/test_compiler.cpp.i
+.PHONY : tests/test_compiler.i
+
+# target to preprocess a source file
+tests/test_compiler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/tests/test_compiler.cpp.i
+.PHONY : tests/test_compiler.cpp.i
+
+tests/test_compiler.s: tests/test_compiler.cpp.s
+.PHONY : tests/test_compiler.s
+
+# target to generate assembly for a file
+tests/test_compiler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/tests/test_compiler.cpp.s
+.PHONY : tests/test_compiler.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -162,9 +199,13 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... rc"
+	@echo "... testrc"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
+	@echo "... tests/test_compiler.o"
+	@echo "... tests/test_compiler.i"
+	@echo "... tests/test_compiler.s"
 .PHONY : help
 
 

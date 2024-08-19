@@ -1,6 +1,6 @@
 // TEST #6 - GENERAL TEST
 
-^^ch print_str
+ch^^: print_str
 
 #print
 	^print_str != 0 ?

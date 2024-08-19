@@ -1,11 +1,11 @@
 // TEST #8 - GENERAL TEST
 
 #main
-	ch nl 10ch
-	ch run 1ch
-	ch c 0ch
+	ch: nl 10ch
+	ch: run 1ch
+	ch: c 0ch
 	
-	ch first_iteration 1ch
+	ch: first_iteration 1ch
 	
 	run != 0 *?
 		>w 1int &"Enter a character: " 19int

@@ -23,19 +23,18 @@ namespace token_function {
 
 
 static void begin_preprocessing() {
-	for (; line_number-1 < lines.size(); line_number++) {
-		lines[line_number-1] = trim(lines[line_number-1]);
-		_ltoks = split(lines[line_number-1]);
-		_us_ltoks = unspaced(_ltoks);
-		
-		if (!lines[line_number-1].empty()) {
+	for (; line_number < lines.size(); line_number++) {
+		lines[line_number] = trim(lines[line_number]);
+		_us_ltoks = unspaced(split(lines[line_number]));
+
+		if (!lines[line_number].empty()) {
 			while_us_find_token("%", 0, 3, [&](TokIt tok_it) {
 				token_function::macro(tok_it);
-				lines.erase(lines.begin()+line_number-1);
+				lines.erase(lines.begin()+line_number);
 				line_number--;
 			});
 	  	} else {
-	  		lines.erase(lines.begin()+line_number-1);
+	  		lines.erase(lines.begin()+line_number);
 			line_number--;
 	  	}
 	}

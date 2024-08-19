@@ -1,9 +1,9 @@
 // TEST #2 - FUNCTIONS AND RETURN
 
-int i 0int
+int: i 0int
 
 #add24
-	int ret i+24int
+	int: ret i+24int
 	#> ret
 }
 
@@ -13,7 +13,7 @@ int i 0int
 
 #add48
 	i = add24
-	int ret mult2
+	int: ret mult2
 	#> ret
 }
 

@@ -1,9 +1,9 @@
 // TEST #7 - WHILE LOOPS
 
 #main
-	int i 0int
+	int: i 0int
 	i < 10int *?
-		ch c i->ch+48
+		ch: c i->ch+48
 		>w 1int &c 1int
 		i=i+1int
 	}

@@ -1,0 +1,1 @@
+/usr/bin/c++ -g CMakeFiles/testrc.dir/tests/test_compiler.cpp.o -o /home/rhys/progs/rc/testrc 

@@ -8,7 +8,6 @@ using TokIt = std::vector<std::string>::iterator;
 
 inline const char* const ws = " \t\n\r\f\v";
 
-inline std::vector<std::string> _ltoks{};
 inline std::vector<std::string> _us_ltoks{};
 inline size_t line_number{0u};
 
@@ -19,10 +18,10 @@ namespace message {
 		std::cout << str << std::endl;
 	}
 	inline void warn(const std::string &str, bool print_line = true) noexcept {
-		std::cerr << (print_line ? "LINE: " + std::to_string(line_number) : "") << "WARNING: " << str << std::endl;
+		std::cerr << (print_line ? "LINE: " + std::to_string(line_number+1) : "") << "WARNING: " << str << std::endl;
 	}
 	inline void error(const std::string &str, bool print_line = true) {
-		throw ((print_line ? "LINE: " + std::to_string(line_number) : "") + " ERROR: " + str + "\n\t" + lines[line_number]);
+		throw ((print_line ? "LINE: " + std::to_string(line_number+1) : "") + " ERROR: " + str + "\n\t" + lines[line_number]);
 	}
 	inline void note(const std::string &str) noexcept {
 		std::cout << "NOTE: " << str << std::endl;
@@ -59,21 +58,7 @@ inline typename Container::iterator remove_constness(Container& c, ConstIterator
     return c.erase(it, it);
 }
 
-inline void while_find_token(const std::string &tok, int begin, int end, const std::function<void(TokIt)> &func) {
-	TokIt tok_it = _ltoks.begin();
-	while (tok_it < _ltoks.end()) {
-		tok_it = find_tok(_ltoks, tok, tok_it);
-		if (tok_it != _ltoks.end()) {
-			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) message::error("Token expected around \"" + *tok_it + "\", but there is none.");
-			func(tok_it);
-		} else {
-			break;
-		}
-		tok_it++;
-	}
-}
-
-inline void while_us_find_token(const std::string &tok, int begin, int end, const std::function<void(TokIt)> &func) {
+inline void while_us_find_token(const std::string &tok, int begin, int end, const std::function<void(TokIt&)> &func) {
 	TokIt tok_it = _us_ltoks.begin();
 	while (tok_it < _us_ltoks.end()) {
 		tok_it = find_tok(_us_ltoks, tok, tok_it);
@@ -87,21 +72,7 @@ inline void while_us_find_token(const std::string &tok, int begin, int end, cons
 	}
 }
 
-inline void while_find_tokens(const std::vector<std::string> &toks, int begin, int end, const std::function<void(TokIt)> &func) {
-	TokIt tok_it = _ltoks.begin();
-	while (tok_it < _ltoks.end()) {
-		tok_it = find_first_tok(_ltoks, toks, tok_it);
-		if (tok_it != _ltoks.end()) {
-			if (tok_it-begin < _ltoks.begin() || tok_it+end >= _ltoks.end()) message::error("Token expected around \"" + *tok_it + "\", but there is none.");
-			func(tok_it);
-		} else {
-			break;
-		}
-		tok_it++;
-	}
-}
-
-inline void while_us_find_tokens(const std::vector<std::string> &toks, int begin, int end, const std::function<void(TokIt)> &func) {
+inline void while_us_find_tokens(const std::vector<std::string> &toks, int begin, int end, const std::function<void(TokIt&)> &func) {
 	TokIt tok_it = _us_ltoks.begin();
 	while (tok_it < _us_ltoks.end()) {
 		tok_it = find_first_tok(_us_ltoks, toks, tok_it);
@@ -147,13 +118,21 @@ inline std::vector<std::string> replace_toks(const std::vector<std::string> &tok
 	return replace_toks(toks, from_it(toks, begin), from_it(toks, end), str);
 }
 
+inline void replace_toks(std::vector<std::string>& toks, std::vector<std::string>::iterator begin,
+						 std::vector<std::string>::iterator end, const std::string& str, TokIt& tok_it) {
+	size_t index{(size_t)std::distance(toks.begin(), tok_it)};
+	toks.erase(begin, end);
+	toks.insert(begin, str);
+	tok_it = toks.begin()+index;
+}
+
 inline std::vector<std::string> replace_tok(std::vector<std::string> toks, size_t i, const std::string &str) {
 	toks[i] = str;
 	return toks;
 }
 
-inline std::vector<std::string> replace_tok(const std::vector<std::string> &toks, std::vector<std::string>::const_iterator it, const std::string &str) {
-	return replace_tok(toks, from_it(toks, it), str);
+inline void replace_tok(std::vector<std::string>& toks, std::vector<std::string>::iterator it, const std::string& str) {
+	*it = str;
 }
 
 inline std::string combine_toks(const std::vector<std::string>::const_iterator &begin, const std::vector<std::string>::const_iterator &end) {
@@ -237,15 +216,5 @@ inline size_t index_of(const std::vector<T> &vec, const T &val) {
 template <typename T>
 inline size_t index_of_last(const std::vector<T> &vec, const T &val) {
 	return from_it(vec, std::find(vec.rbegin(), vec.rend(), val).base());
-}
-
-
-inline void commit(const std::vector<std::string> &new_vec) {
-	_ltoks = new_vec;
-	if (find_tok(new_vec, " ", new_vec.begin()) ==	new_vec.end()) {
-		_us_ltoks = new_vec;
-	} else {
-		_us_ltoks = unspaced(_ltoks);
-	}
 }
 

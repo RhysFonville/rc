@@ -10,30 +10,11 @@
 #include <regex>
 #include <memory>
 #include <variant>
+#include <iterator>
 #include "preprocessor.h" // Including in here stops weird redefinition errors for util.h
 
 #define DATA_ASM (std::ranges::find(out, ".data\n"))
 #define TEXT_ASM (std::ranges::find(out, ".text\n")) 
-
-// Returns optional's value but throws with the error message if there was no value.
-template <typename T>
-T & expect(std::optional<T>& opt, const std::string& error_message) noexcept {
-	if (!opt.has_value()) {
-		message::error(error_message);
-	}
-	
-	return opt.value();
-}
-
-// Returns optional's value but throws with the error message if there was no value.
-template <typename T>
-T expect(const std::optional<T>& opt, const std::string& error_message) noexcept {
-	if (!opt.has_value()) {
-		message::error(error_message);
-	}
-	
-	return opt.value();
-}
 
 struct Register {
 	struct Names {
@@ -98,6 +79,12 @@ struct Register {
 		
 		return (name1 == name2);
 	}
+};
+
+static std::vector<Register> registers = {
+	Register("rbx","ebx","bx","bh","bl"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
+	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
+	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
 };
 
 using RegisterRef = std::optional<std::reference_wrapper<Register>>; 
@@ -274,16 +261,37 @@ static bool is_number(std::string s) {
     return !s.empty() && it == s.end();
 }
 
+static RegisterRef get_available_register() {
+	for (Register &reg : registers) {
+		if (!reg.occupied) return RegisterRef(reg); 
+	}
+
+	message::error("No registers are available.");
+	return std::nullopt;
+}
+
+static RegisterRef get_register(std::string str) {
+	for (Register &reg : registers) {
+		if (reg.comp_names(reg.names.q, str) ||
+			reg.comp_names(reg.names.l, str) ||
+			reg.comp_names(reg.names.w, str) ||
+			reg.comp_names(reg.names.bh, str) ||
+			reg.comp_names(reg.names.bl, str)) return RegisterRef(reg);
+	}
+	
+	return std::nullopt;
+}
+
 static bool is_stack_variable(const std::string &str) {
 	// ex of variable: -4(%rbp)
-	if (str.find("%rbp") != std::string::npos) {
-		size_t parenthesis = str.find('(');
-		if (parenthesis != -1) {
-			std::string num_before = str.substr(0, parenthesis);
-			if (is_number(num_before)) {
-				if (std::stoi(num_before) < 0) {
-					std::string reg = str.substr(parenthesis, str.size()-parenthesis);
-					if (reg == "(%rbp)") {
+	size_t parenthesis = str.find('(');
+	if (parenthesis != -1) {
+		std::string num_before = str.substr(0, parenthesis);
+		if (is_number(num_before)) {
+			if (std::stoi(num_before) < 0) {
+				std::string reg_str = str.substr(parenthesis, str.size()-parenthesis);
+				if (RegisterRef reg = get_register(reg_str.substr(1, reg_str.size()-2)); reg.has_value()) {
+					if (reg->get() == get_register("%rbp")->get()) {
 						return true;
 					}
 				}
@@ -448,12 +456,6 @@ static std::optional<std::reference_wrapper<Variable>> get_variable_by_asm_or_na
 
 static std::string current_function = "";
 
-static std::vector<Register> registers = {
-	Register("rbx","ebx","bx","bh","bl"), Register("r10","r10d","r10w","r10b","r10b"), Register("r11","r11d","r11w","r11b","r11b"), Register("r12","r12d","r12w","r12b","r12b"), Register("r13","r13d","r13w","r13b","r13b"), Register("r14","r14d","r13w","r13b","r13b"), Register("r15","r15d","r15w","r15b","r15b"),
-	Register("rax","eax","ax","ah","al"), Register("rdi","edi","di","dil","dil"), Register("rsi","esi","si","sil","sil"), Register("rdx","edx","dx","dl","dh"), Register("rcx","ecx","cx","ch","cl"), Register("r8","r8d","r8w","r8b","r8b"), Register("r9","r8d","r8w","r8b","r8b"), // SYSCALL REGISTERS
-	Register("rsp","esp","sp","spl","spl"), Register("rbp","ebp","bp","bpl","bpl") // STACK REGISTERS
-};
-
 static const std::vector<std::string> math_symbols = { "*", "/", "+", "-" };
 
 static std::vector<std::string> out;
@@ -463,27 +465,6 @@ static const std::string SYS_WRITE = "$1";
 static const std::string SYS_EXIT  = "$60";
 static const std::string STDIN     = "$0";
 static const std::string STDOUT    = "$1";
-
-static RegisterRef get_available_register() {
-	for (Register &reg : registers) {
-		if (!reg.occupied) return RegisterRef(reg); 
-	}
-
-	message::error("No registers are available.");
-	return std::nullopt;
-}
-
-static RegisterRef get_register(std::string str) {
-	for (Register &reg : registers) {
-		if (reg.comp_names(reg.names.q, str) ||
-			reg.comp_names(reg.names.l, str) ||
-			reg.comp_names(reg.names.w, str) ||
-			reg.comp_names(reg.names.bh, str) ||
-			reg.comp_names(reg.names.bl, str)) return RegisterRef(reg);
-	}
-	
-	return std::nullopt;
-}
 
 static std::string get_string_literal(const std::vector<std::string> &toks, TokIt index, bool with_quotes = true) { // Not actually used but I'm keeping it
 	std::string ret = "";
@@ -562,10 +543,6 @@ static int get_size_of_number(const std::string &str) {
 }
 
 static std::optional<Type> get_type_opt(const std::string &str) {
-	/*if (RegisterRef reg = get_register(str); reg.has_value()) {
-		return get_type_by_size(get_size_of_register(str));
-	}*/
-
 	std::optional<std::reference_wrapper<Variable>> var{get_variable_by_asm_or_name(str)};
 	if (var.has_value()) {
 		return var->get().type;
@@ -577,28 +554,50 @@ static std::optional<Type> get_type_opt(const std::string &str) {
 		return Type{std::make_shared<const Type>(it->second)};
 	}
 
+	if (RegisterRef reg = get_register(str); reg.has_value()) {
+		return get_type_by_size(get_size_of_register(str));
+	}
+	
 	return std::nullopt;
 }
 
 static Type get_type(const std::string& str) {
-	return expect(get_type_opt(str), "Can't get type");
+	if (auto type = get_type_opt(str); type.has_value()) {
+		return get_type_opt(str).value();
+	} else {
+		return Type{};
+	}
 }
 
-static Type get_type(TokIt tok_it, bool by_name = false, BaseType pointer_base_type = BaseType{}) {
+static Type get_type(TokIt tok_it, bool no_cast = false, bool by_name = false, BaseType pointer_base_type = BaseType{}) {
 	if (*(tok_it+1) == "^^") {
 		if (by_name) {
-			return Type{std::make_shared<const Type>(get_type(
-				tok_it+1,
-				true,
-				(pointer_base_type != BaseType() ? pointer_base_type : std::get<const BaseType>(expect(get_type_by_name(*tok_it), "Can't get pointer base type by name.").real_type))
-			))};
+			if (pointer_base_type != BaseType{}) {
+				return Type{std::make_shared<const Type>(get_type(
+					tok_it+1,
+					no_cast,
+					true,
+					pointer_base_type
+				))};
+			} else {
+				if (auto type = get_type_by_name(*tok_it); type.has_value()) {
+					return Type{std::make_shared<const Type>(get_type(
+						tok_it+1,
+						no_cast,
+						true,
+						std::get<const BaseType>(type.value().real_type)
+					))};
+				} else {
+					message::error("Can't get pointer base type by name.");
+				}
+			}
 		} else {
 			message::error("Unexpected token '^^'.");
 		}
 	} else {
-		if (*(tok_it+1) == "->") {
-			if (!by_name) message::error("Unnecessary to cast type by name.");
-			return get_type(tok_it+2, true);
+		if (!no_cast && *(tok_it+1) == "->" && from_it(_us_ltoks, tok_it+1) < _us_ltoks.size()) { // Weird bug where tok_it+1 has a value even though its out of bounds
+			if (by_name) message::error("Unnecessary to cast type by name.");
+			return get_type(tok_it+2, no_cast, true);
 		} else {
 			if (by_name) {
 				std::optional<Type> type{get_type_by_name(*tok_it)};
@@ -621,7 +620,7 @@ static Type get_type(TokIt tok_it, bool by_name = false, BaseType pointer_base_t
 }
 
 static Type get_type_by_name(TokIt tok_it) {
-	return get_type(tok_it, true);
+	return get_type(tok_it, false, true);
 }
 
 /*
@@ -678,17 +677,64 @@ static std::string get_mov_instruction(int lhs, int rhs) {
 	if (lhs < rhs)
 		return sign_extension_mov(lhs, rhs);
 	else
-		return std::string{"mov"} + (rhs != -1 ? size_to_letter(rhs) : size_to_letter(sizeof(long)));
+		return std::string{"mov"} + size_to_letter(rhs);
 }
 
-static std::string get_mov_instruction(const std::string &lhs, const std::string &rhs) {
-	Type rhs_type = get_type(rhs);
-	Type lhs_type = get_type(lhs);
-	return get_mov_instruction(lhs_type.get_size(), rhs_type.get_size());
+//static std::string get_mov_instruction(const Type& lhs, const Type& rhs) {
+//	return get_mov_instruction(lhs.get_size(), rhs.get_size());
+//}
+
+static std::string get_mov_instruction(const std::string& lhs, const std::string& rhs) {
+	int lhs_size{};
+	int rhs_size{};
+	if (is_stack_variable(lhs)) {
+		rhs_size = get_type(rhs).get_size();
+		lhs_size = rhs_size;
+	} else {
+		if (is_stack_variable(rhs)) {
+			lhs_size = get_type(lhs).get_size();
+			rhs_size = lhs_size;
+		} else {
+			lhs_size = get_type(lhs).get_size();
+			rhs_size = get_type(rhs).get_size();
+		}
+	}
+
+	return get_mov_instruction(lhs_size, rhs_size);
 }
 
-static std::string mov(const std::string &lhs, const std::string &rhs) {
-	return get_mov_instruction(lhs, rhs) + ' ' + prep_asm_str(lhs) + ", " + prep_asm_str(rhs);
+static std::string change_eq_to_reg(std::string lhs, int lhs_size, const std::string& rhs, int rhs_size, int literal_default = -1) {
+	bool lhs_is_reg{false};
+	if (get_register(lhs).has_value()) {
+		lhs_is_reg = true;
+	}
+	bool rhs_is_reg{false};
+	if (get_register(rhs).has_value()) {
+		rhs_is_reg = true;
+	}
+
+	if (literal_default != -1 && is_number(lhs)) {
+		lhs_size = literal_default;
+	}
+	
+	bool lhs_is_number{is_number(lhs)};
+	bool rhs_is_number{is_number(rhs)};
+	
+	// mem -> mem is not allowed, so I have to make the asm lhs a register.
+	if (!(rhs_is_reg || rhs_is_number) && !(lhs_is_reg || lhs_is_number)) { // if both are memory
+		RegisterRef reg{get_available_register()};
+		reg->get().occupied = false;
+		std::string reg_name{reg->get().name_from_size(rhs_size)};
+		out.push_back(get_mov_instruction(lhs_size, rhs_size) + ' ' + prep_asm_str(lhs) + ", " + reg_name + '\n');
+		lhs = reg_name;
+	}
+
+	return lhs;
+}
+
+static std::string mov(const std::string& lhs, const Type& lhs_type, const std::string& rhs, const Type& rhs_type, int literal_default = -1) {
+	std::string new_lhs = change_eq_to_reg(lhs, lhs_type.get_size(), rhs, rhs_type.get_size(), literal_default);
+	return get_mov_instruction(new_lhs, rhs) + ' ' + prep_asm_str(new_lhs) + ", " + prep_asm_str(rhs);
 }
 
 static void unoccupy_if_register(const std::string &reg_name) {
@@ -698,23 +744,18 @@ static void unoccupy_if_register(const std::string &reg_name) {
 }
 
 /*
-std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1, bool change_reg_size = true) {
-	int rhs_size = get_size_of_operand(rhs);
-	int lhs_size = get_size_of_operand(lhs, rhs_size);
-	int max_size;
-	if (default_size == -1) {
-		max_size = std::max(lhs_size, rhs_size);
-	} else {
-		max_size = std::max({ lhs_size, rhs_size, default_size });
-	}
+std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rhs, int default_size = -1) {
+	int rhs_size = get_type(rhs).get_size();
+	int lhs_size = get_type(lhs).get_size();
+	int max_size = std::max(lhs_size, rhs_size);
 	
-	bool lhs_is_reg = true;
-	if (!get_register(lhs).has_value()) {
-		lhs_is_reg = false;
+	bool lhs_is_reg{false};
+	if (get_register(lhs).has_value()) {
+		lhs_is_reg = true;
 	}
-	bool rhs_is_reg = true;
-	if (!get_register(rhs).has_value()) {
-		rhs_is_reg = false;
+	bool rhs_is_reg{false};
+	if (get_register(rhs).has_value()) {
+		rhs_is_reg = true;
 	}
 	
 	bool lhs_is_number = is_number(lhs);
@@ -740,14 +781,15 @@ std::pair<std::string, std::string> cast_lhs_rhs(std::string lhs, std::string rh
 			lhs = reg->get().name_from_size(max_size);
 		}
 	}
-	
+/*	
 	if (change_reg_size) {
 		if (RegisterRef reg = get_register(lhs); reg.has_value()) {
 			reg->get().occupied = true;
 			lhs = reg->get().name_from_size(rhs_size);
 		}
 	}
-
+*/
+/*
 	return { lhs, rhs };
 }
 */
@@ -765,12 +807,30 @@ static std::smatch get_innermost_parentheses(const std::string& str) {
 	return match;
 }
 
+static std::ranges::subrange<std::vector<std::string>::iterator> get_innermost_parentheses(std::vector<std::string>& toks) {
+	std::vector<std::string>::iterator end = std::ranges::find(toks, ")");
+	std::vector<std::string>::iterator begin = std::ranges::find_last(toks.begin(), end, "(").begin();
+
+	if (begin == toks.end() && end == toks.end()) {
+		begin = toks.begin();
+		end = toks.end()-1;
+	} else {
+		if (begin == toks.end()) {
+			message::error("No beginning parenthesis to match end parenthesis.");
+		} else if (end == toks.end()) {
+			message::error("No ending parenthesis to match begin parenthesis.");
+		}
+	}
+
+	return std::ranges::subrange{begin, end+1};
+}
+
 namespace token_function {
 	static void dereference(TokIt tok_it) {
 		_us_ltoks.erase(tok_it);
 
 		Type type = get_type(*tok_it);
-		std::cout << "Dereference: " << type << std::endl;
+		//std::cout << "Dereference: " << type << std::endl;
 		if (!type.is_pointer()) {
 			message::error("Only pointers can be dereferenced");
 		}
@@ -787,7 +847,7 @@ namespace token_function {
 		
 		dereferenced_type_correspondant.push_back(std::make_pair(new_reg_name, type));
 		
-		commit(replace_tok(_us_ltoks, tok_it, new_reg_name));
+		replace_tok(_us_ltoks, tok_it, new_reg_name);
 	}
 
 	static void address_of(TokIt tok_it) {
@@ -796,11 +856,11 @@ namespace token_function {
 		std::string reg_name = reg->get().names.q;
 		out.push_back("leaq " + *(tok_it+1) + ", " + reg_name + '\n');
 		
-		std::cout << "Address of: " << get_type(*(tok_it+1)) << std::endl;
+		//std::cout << "Address of: " << get_type(*(tok_it+1)) << std::endl;
 		
 		addressed_type_correspondant.push_back(std::make_pair(reg_name, get_type(*(tok_it+1))));
 		
-		commit(replace_toks(_us_ltoks, tok_it, tok_it+1, reg_name));
+		replace_toks(_us_ltoks, tok_it, tok_it+2, reg_name, tok_it);
 	}
 
 	static void math(TokIt &tok_it) {
@@ -817,70 +877,46 @@ namespace token_function {
 			message::error("Invalid math operator.");
 		}
 		if (cmd == "add" || cmd == "sub") {
-			Type lhs_type = get_type(*(tok_it-1));
-			Type rhs_type = get_type(*(tok_it+1));
+			Type lhs_type = get_type(tok_it-1);
+			Type rhs_type = get_type(tok_it+1);
 
 			if (lhs_type != rhs_type) {
 				message::error("Mismatched types in arithmatic.");
 			}
 			
 			if (is_number(*(tok_it-1)) && is_number(*(tok_it+1))) {
-				commit(
-					replace_toks(_us_ltoks, tok_it-1, tok_it+1,
-						std::to_string(std::stoll(get_number(*(tok_it-1))) + std::stoll(get_number(*(tok_it+1)))) + std::get<const BaseType>(lhs_type.real_type).name
-					)
+				replace_toks(
+					_us_ltoks,
+				 	tok_it-1, tok_it+2,
+					std::to_string(std::stoll(get_number(*(tok_it-1))) + std::stoll(get_number(*(tok_it+1)))) + std::get<const BaseType>(lhs_type.real_type).name,
+					tok_it
 				);
 				tok_it -= 1;
 				unoccupy_if_register(*(tok_it+1));
 				return;
 			}
 			
+			Type lhs_real_type = get_type(tok_it-1, true);
+			Type rhs_real_type = get_type(tok_it+1, true);
+
 			// Move rhs into temp register
-			RegisterRef lhs = get_available_register(); // code lhs (math output)
-			lhs->get().occupied = true;
-			std::string lhs_name = lhs->get().name_from_size(lhs_type.get_size());
-			out.push_back(mov(*(tok_it-1), lhs_name) + '\n');
+			RegisterRef rhs = get_available_register(); // asm rhs
+			rhs->get().occupied = true;
+			std::string rhs_name = rhs->get().name_from_size(lhs_real_type.get_size());
+			out.push_back(mov(*(tok_it-1), rhs_real_type, rhs_name, lhs_real_type) + '\n');
 			
+			std::string cmd_rhs{change_eq_to_reg(*(tok_it+1), rhs_real_type.get_size(), rhs_name, lhs_real_type.get_size())};
 			out.push_back(
-				cmd + size_to_letter(rhs_type.get_size()) + ' ' + prep_asm_str(*(tok_it+1)) + ", " + prep_asm_str(*(tok_it-1)) + '\n'
+				cmd + size_to_letter(rhs_type.get_size()) + ' ' + prep_asm_str(cmd_rhs) + ", " + prep_asm_str(rhs_name) + '\n'
 			);
 		
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, *(tok_it-1)));
+			replace_toks(_us_ltoks, tok_it-1, tok_it+2, rhs_name, tok_it);
 			tok_it -= 1; // Tok it is out of bounds since "[x] [+] [y]" narrows down to "[result]"
 			
-			lhs->get().occupied = false;
-			unoccupy_if_register(*(tok_it+1));
+			//rhs->get().occupied = false;
 			
 		} else if (cmd == "mul" || cmd == "div") {
 			message::error("Multiplication and division not yet supported.");
-			
-			/*
-			RegisterRef lhs = get_register("rax");
-			lhs->get().occupied = true;
-			RegisterRef rhs = get_register("rdx");
-
-			int lhs_size = get_size_of_operand(*(tok_it-1)); 
-			int rhs_size = get_size_of_operand(*(tok_it+1));
-			int arithmatic_size = std::max({ lhs_size, rhs_size, 4 });
-
-			// Check again using a number default now that we know the arithmatic size
-			lhs_size = get_size_of_operand(*(tok_it-1), arithmatic_size); 
-			rhs_size = get_size_of_operand(*(tok_it+1), arithmatic_size);
-			
-			std::string lhs_str = get_mov_instruction(lhs_size, arithmatic_size) + ' ';
-			lhs_str += prep_asm_str(*(tok_it-1)) +  ", " + lhs->get().name_from_size(lhs_size)  + '\n';
-			std::string rhs_str = get_mov_instruction(rhs_size, arithmatic_size) + ' ';
-			rhs_str += prep_asm_str(*(tok_it+1)) +  ", " + rhs->get().name_from_size(rhs_size) + '\n';
-			
-			out.push_back(lhs_str);
-			out.push_back(rhs_str);
-			out.push_back(cmd + get_type_of_size(arithmatic_size)->suffix + ' ' + rhs->get().name_from_size(arithmatic_size) + '\n');
-
-			commit(replace_toks(_us_ltoks, tok_it-1, tok_it+1, lhs->get().name_from_size(arithmatic_size)));
-
-			lhs->get().occupied = true;
-			rhs->get().occupied = false;
-			*/
 		}
 	}
 
@@ -898,19 +934,16 @@ namespace token_function {
 	}
 */	
 	
-	static void variable_declaration(TokIt tok_it, const std::string& current_function, int current_stack_size) {
+	static void variable_declaration(TokIt tok_it, const std::string& current_function, int& current_stack_size) {
 		std::optional<Type> _type = get_type_by_name(tok_it);
 		if (!_type.has_value()) {
 			message::error("Cannot declare variable. Type does not exist.");
 		}
 		
 		// Combine type toks into one
-		commit(replace_toks(_us_ltoks, from_it(_us_ltoks, tok_it), from_it(_us_ltoks, find_tok(_us_ltoks, ":", tok_it)), combine_toks(tok_it, find_tok(_us_ltoks, ":", tok_it)+1)));
+		replace_toks(_us_ltoks, tok_it, find_tok(_us_ltoks, ":", tok_it)+1, combine_toks(tok_it, find_tok(_us_ltoks, ":", tok_it)+1), tok_it);
 		
-		Type other{get_type(tok_it+2)};
-		if (_type.value() != other) {
-			std::cout << _type.value() << std::endl;
-			std::cout << other << std::endl;
+		if (_type.value() != get_type(tok_it+2)) {
 			message::error("Incompatible types for variable declaration.");
 		}
 			
@@ -943,20 +976,12 @@ namespace token_function {
 			}));
 			
 			out.push_back(
-				mov(*(tok_it+2), std::to_string(variables.back()->stack_location) + "(%rbp)") + '\n'
+				mov(*(tok_it+2), get_type(tok_it+2, true), std::to_string(variables.back()->stack_location) + "(%rbp)", variables.back()->type) + '\n'
 			);
 		}
 		
 		std::vector<std::string> type_qualifiers{_us_ltoks.begin(), tok_it};
 		variables.back()->type_qualifiers = type_qualifiers;
-	}
-	
-	static void equals(const std::string &lhs, const std::string &rhs, bool change_reg_size = false) {
-		if (get_type(lhs) != get_type(rhs)) {
-			message::error("Cant set equal two different types.");
-		}
-		
-		out.push_back(mov(lhs, rhs) + '\n');
 	}
 	
 	static void equals(TokIt tok_it) {
@@ -970,55 +995,59 @@ namespace token_function {
 			//}
 		}
 
-		equals(*(tok_it+1), *(tok_it-1), true);
+		if (get_type(tok_it-1) != get_type(tok_it+1)) {
+			message::error("Cant set equal two different types.");
+		}
+		
+		out.push_back(mov(*(tok_it+1), get_type(tok_it+1, true), *(tok_it-1), get_type(tok_it-1, true)) + '\n');
 	}
 
 	static void base_functions(TokIt tok_it) {
 		if (*(tok_it+1) == "w") { // WRITE
-			if (get_type(tok_it+2) == get_type_by_size(sizeof(int))) {
+			if (get_type(tok_it+2) != get_type_by_size(sizeof(int))) {
 				message::error("Base function 'w' parameter 1 accepts an integer.");
 			}
 			if (!get_type(tok_it+3).is_pointer()) {
 				message::error("Base function 'w' parameter 2 accepts a pointer.");
 			}
-			if (get_type(tok_it+4) == get_type_by_size(sizeof(int))) {
+			if (get_type(tok_it+4) != get_type_by_size(sizeof(int))) {
 				message::error("Base function 'w' parameter 3 accepts an integer.");
 			}
 
 			out.push_back("movl " + SYS_WRITE + ", %eax\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+2)) + "%edi\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+3)) + "%rsi\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+4)) + "%edx\n");
+			out.push_back(mov(*(tok_it+2), get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value())  + '\n');
+			out.push_back(mov(*(tok_it+3), get_type(tok_it+3, true), "%rsi", get_type_by_size(sizeof(long)).value())  + '\n');
+			out.push_back(mov(*(tok_it+4), get_type(tok_it+4, true), "%edx", get_type_by_size(sizeof(int)).value())  + '\n');
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "r") { // READ
-			if (get_type(tok_it+2) == get_type_by_size(sizeof(int))) {
+			if (get_type(tok_it+2) != get_type_by_size(sizeof(int))) {
 				message::error("Base function 'r' parameter 1 accepts an integer.");
 			}
 			if (!get_type(tok_it+3).is_pointer()) {
 				message::error("Base function 'r' parameter 2 accepts a pointer.");
 			}
-			if (get_type(tok_it+4) == get_type_by_size(sizeof(int))) {
+			if (get_type(tok_it+4) != get_type_by_size(sizeof(int))) {
 				message::error("Base function 'r' parameter 3 accepts an integer.");
 			}
 			
 			out.push_back("movl " + SYS_READ + ", %eax\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+2)) + ", %edi\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+3)) + ", %rsi\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+4)) + ", %edx\n");
+			out.push_back(mov(*(tok_it+2), get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value())  + '\n');
+			out.push_back(mov(*(tok_it+3), get_type(tok_it+3, true), "%rsi", get_type_by_size(sizeof(long)).value())  + '\n');
+			out.push_back(mov(*(tok_it+4), get_type(tok_it+4, true), "%edx", get_type_by_size(sizeof(int)).value()) + '\n');
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 			unoccupy_if_register(*(tok_it+3));
 			unoccupy_if_register(*(tok_it+4));
 		} else if (*(tok_it+1) == "e") { // EXIT
-			if (get_type(tok_it+2) == get_type_by_size(sizeof(int))) {
+			if (get_type(tok_it+2) != get_type_by_size(sizeof(int)).value()) {
 				message::error("Base function 'e' accepts an integer.");
 			}
 
 			out.push_back("movl " + SYS_EXIT + ", %eax\n");
-			out.push_back("movl " + prep_asm_str(*(tok_it+2)) + ", %edi\n");
+			out.push_back(mov(*(tok_it+2), get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value()) + '\n');
 			out.push_back("syscall\n");
 			unoccupy_if_register(*(tok_it+2));
 		}
@@ -1051,7 +1080,7 @@ namespace token_function {
 	static void function_call(TokIt tok_it) {
 		out.push_back("movl $0, %eax\n");
 		out.push_back("call " + *tok_it + '\n');
-		commit(replace_tok(_us_ltoks, tok_it, "%eax"));
+		replace_tok(_us_ltoks, tok_it, "%eax");
 	}
 	
 	static void function_return(TokIt tok_it, const std::vector<std::string> &toks, std::string &current_function) {
@@ -1109,7 +1138,7 @@ namespace token_function {
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
-			out.push_back(mov(str, reg->get().name_from_size(get_size_of_number(str))) + '\n');
+			//out.push_back(mov(str, reg->get().name_from_size(get_size_of_number(str))) + '\n');
 			str = reg->get().name_from_size(get_size_of_number(str));
 		}; // Trying to somewhat stay DRY...
 		
@@ -1223,7 +1252,7 @@ namespace token_function {
 			Type type{std::make_shared<const Type>(get_type_by_size(sizeof(char)).value())};
 			
 			out.insert(DATA_ASM+2, str + ' ' + combine_toks(tok_it-2, tok_it+1) + std::string(1, '\n'));
-			commit(replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it, ".STR" + std::to_string(str_index)));
+			replace_toks(_us_ltoks, (str == ".ascii" ? tok_it-3 : tok_it-2), tok_it+1, ".STR" + std::to_string(str_index), tok_it);
 			variables.push_back(std::make_shared<Variable>(Variable{".STR" + std::to_string(str_index), type, NO_STACK, braces::braces_end_index()}));
 			str_index++;
 		}
@@ -1247,8 +1276,6 @@ static int begin_compile(std::vector<std::string> args) {
 	std::ofstream write;
 	write.open(output_dir + "rcout.s", std::ofstream::out | std::ios::trunc);
 	
-	std::vector<std::string> disallowed_toks = { };
-
 	std::vector<std::string> functions = { };
 	std::vector<int> current_function_stack_sizes = { };
 
@@ -1259,26 +1286,25 @@ static int begin_compile(std::vector<std::string> args) {
 	
 	line_number = 0;
 	for (std::string l : lines) {
-		std::smatch chunk{get_innermost_parentheses(l)};
-		bool no_parentheses{chunk.str().find('(') == std::string::npos};
-		while (!chunk.empty()) {
-			line_number++;
-			std::string _chunk = trim(chunk.str());
-			_ltoks = split(_chunk);
-			_us_ltoks = unspaced(_ltoks);
+		l = trim(l);
+		//std::vector<std::string> ltoks = split(_chunk);
+		std::vector<std::string> us_ltoks = unspaced(split(l));
+		
+		while (!us_ltoks.empty()) {
+			std::ranges::subrange<std::vector<std::string>::iterator> parentheses{get_innermost_parentheses(us_ltoks)};
+			_us_ltoks = std::vector<std::string>{parentheses.begin(), parentheses.end()};
+			bool no_parentheses = std::ranges::find(_us_ltoks, "(") == _us_ltoks.end();
 			
-			//std::ranges::for_each(_us_ltoks,[](auto s){std::cout<<s<<' ';});std::cout<<std::endl; // print all toks
-			
-			while_us_find_token("\"", 0, 0, [&](TokIt tok_it) {
+			while_us_find_token("\"", 0, 0, [&](TokIt& tok_it) {
 				token_function::quote(tok_it, str_index, in_quote);
 			});
-			while_us_find_token("//", 0, 0, [&](TokIt tok_it) {
+			while_us_find_token("//", 0, 0, [&](TokIt& tok_it) {
 				int i = std::distance(_us_ltoks.begin(), tok_it);
 				while ( i < _us_ltoks.size()) {
 					_us_ltoks.erase(_us_ltoks.begin()+i);
 				}
 			});
-			while_us_find_token("#", 0, 1, [&](TokIt tok_it) {
+			while_us_find_token("#", 0, 1, [&](TokIt& tok_it) {
 				if (tok_it != _us_ltoks.begin()) {
 					if (std::ranges::find(functions, *(tok_it+1)) != functions.end()) {
 						message::error("Cannot declare function. Function of this name already exists.");
@@ -1287,7 +1313,7 @@ static int begin_compile(std::vector<std::string> args) {
 				}
 				token_function::function_declaration(tok_it, functions, current_function_stack_sizes, current_function);
 			});
-			while_us_find_tokens(functions, 0, 0, [&](TokIt tok_it) {
+			while_us_find_tokens(functions, 0, 0, [&](TokIt& tok_it) {
 				if (std::distance(_us_ltoks.begin(), tok_it) > 0) {
 					if (*(tok_it-1) == "#") {
 						return;
@@ -1295,67 +1321,83 @@ static int begin_compile(std::vector<std::string> args) {
 				}
 				token_function::function_call(tok_it);
 			});
-			while_us_find_tokens(variable_names(), 0, 0, [&](TokIt tok_it) {
+			while_us_find_tokens(variable_names(), 0, 0, [&](TokIt& tok_it) {
 				size_t vec_index = index_of(variable_names(), *tok_it);
 				if (variable_stack_locations()[vec_index] != NO_STACK) {
-					commit(replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)"));
+					//commit(replace_tok(_us_ltoks, tok_it,
+					//	std::to_string(variable_stack_locations()[vec_index]) +
+					//	'(' + get_register("rbp")->get().name_from_size(variables[vec_index]->type.get_size()) + ')'
+					//));
+					replace_tok(_us_ltoks, tok_it, std::to_string(variable_stack_locations()[vec_index]) + "(%rbp)");
 				} else {
 					*tok_it += "(%rip)";
-					commit(_us_ltoks);
 				}
 			});
-			while_us_find_token("->", 1, 1, [&](TokIt tok_it) {
+			//while_us_find_token("->", 1, 1, [&](TokIt& tok_it) {
 				//token_function::cast(tok_it);
-			});
-			while_us_find_token("^", 0, 1, [&](TokIt tok_it) {
+			//});
+			while_us_find_token("^", 0, 1, [&](TokIt& tok_it) {
 				token_function::dereference(tok_it);
 			});
-			while_us_find_token("&", 0, 1, [&](TokIt tok_it) {
+			while_us_find_token("&", 0, 1, [&](TokIt& tok_it) {
 				token_function::address_of(tok_it);
 			});
-			while_us_find_tokens(math_symbols, 1, 1, [&](TokIt tok_it) {
+			while_us_find_tokens(math_symbols, 1, 1, [&](TokIt& tok_it) {
 				token_function::math(tok_it);
 			});
-			while_us_find_token("=", 1, 1, [&](TokIt tok_it) {
+			while_us_find_token("=", 1, 1, [&](TokIt& tok_it) {
 				token_function::equals(tok_it);
 			});
-			while_us_find_tokens(type_names(), 0, 1, [&](TokIt tok_it) {
-				if (get_variable_by_name(*(tok_it+1)).has_value()) {
-					message::error("Cannot define variable. Variable of this name already exists.");
-					return;
+			while_us_find_tokens(type_names(), 0, 0, [&](TokIt& tok_it) {
+				if (tok_it == _us_ltoks.begin()) {
+					if (get_variable_by_name(*(tok_it+1)).has_value()) {
+						message::error("Cannot define variable. Variable of this name already exists.");
+						return;
+					}
+					if (find_tok(_us_ltoks, ":", _us_ltoks.begin()) == _us_ltoks.end()) { return; }
+					
+					size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
+					token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 				}
-				
-				size_t func_vec_index = from_it(functions, std::ranges::find(functions, current_function));
-				token_function::variable_declaration(tok_it, current_function, current_function_stack_sizes[func_vec_index]);
 			});
-			while_us_find_token("#>", 0, 1, [&](TokIt tok_it) {
+			while_us_find_token("#>", 0, 1, [&](TokIt& tok_it) {
 			token_function::function_return(tok_it, _us_ltoks, current_function);
 			});
-			while_us_find_token("{", 0, 0, [&](TokIt tok_it) {
+			while_us_find_token("{", 0, 0, [&](TokIt& tok_it) {
 				token_function::brace_open(tok_it);
 			});
-			while_us_find_token("}", 0, 0, [&](TokIt tok_it) {
+			while_us_find_token("}", 0, 0, [&](TokIt& tok_it) {
 				token_function::brace_close(tok_it);
 			});
-			while_us_find_token("??", 0, 0, [&](TokIt tok_it) {
+			while_us_find_token("??", 0, 0, [&](TokIt& tok_it) {
 				token_function::else_statement(tok_it);
 			});
-			while_us_find_token("?", 1, 0, [&](TokIt tok_it) {
+			while_us_find_token("?", 1, 0, [&](TokIt& tok_it) {
 				token_function::if_statement(tok_it);
 			});
-			while_us_find_token("*?", 1, 0, [&](TokIt tok_it) {
+			while_us_find_token("*?", 1, 0, [&](TokIt& tok_it) {
 				token_function::while_loop(tok_it);
 			});
-			while_us_find_token("~", 0, 0, [&](TokIt tok_it) {
-				commit(replace_tok(_us_ltoks, tok_it, "rax"));
+			while_us_find_token("~", 0, 0, [&](TokIt& tok_it) {
+				replace_tok(_us_ltoks, tok_it, "rax");
 			});
-			while_us_find_token(">", 0, 2, [&](TokIt tok_it) {
+			while_us_find_token(">", 0, 2, [&](TokIt& tok_it) {
 				token_function::base_functions(tok_it);
 			});
-
-			l.erase(l.begin()+chunk.position(), l.begin()+chunk.position()+chunk.length());
-			l.insert(chunk.position(), combine_toks(_us_ltoks.begin(), _us_ltoks.end()));
 			
+			if (no_parentheses) {
+				line_number++;
+				break;
+			} else {
+				us_ltoks.erase(parentheses.begin(), parentheses.end());
+				us_ltoks.insert(parentheses.begin(), _us_ltoks.begin()+1, _us_ltoks.end()-1);
+			}
+
+			/*std::cout << "[ ";
+			std::ranges::for_each(us_ltoks,[](auto s){std::cout<<s<<' ';}); // print all toks
+			std::cout << " ]\n";*/
+			
+			/*
 			if (no_parentheses) {
 				break;
 			} else {
@@ -1368,9 +1410,9 @@ static int begin_compile(std::vector<std::string> args) {
 				chunk = get_innermost_parentheses(l);
 				no_parentheses = (chunk.str().find('(') == std::string::npos);
 			}
+			*/
 		}
 		
-		disallowed_toks.clear();
 		dereferenced_type_correspondant.clear();
 		addressed_type_correspondant.clear();
 		for (Register &reg : registers) {

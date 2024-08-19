@@ -64,6 +64,7 @@ CMAKE_BINARY_DIR = /home/rhys/progs/rc/build
 
 # The main recursive "all" target.
 all: CMakeFiles/rc.dir/all
+all: CMakeFiles/testrc.dir/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
@@ -72,6 +73,7 @@ preinstall:
 
 # The main recursive "clean" target.
 clean: CMakeFiles/rc.dir/clean
+clean: CMakeFiles/testrc.dir/clean
 .PHONY : clean
 
 #=============================================================================
@@ -99,6 +101,32 @@ rc: CMakeFiles/rc.dir/rule
 CMakeFiles/rc.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/rc.dir/build.make CMakeFiles/rc.dir/clean
 .PHONY : CMakeFiles/rc.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/testrc.dir
+
+# All Build rule for target.
+CMakeFiles/testrc.dir/all:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/rhys/progs/rc/build/CMakeFiles --progress-num=3,4 "Built target testrc"
+.PHONY : CMakeFiles/testrc.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/testrc.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/rhys/progs/rc/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/testrc.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/rhys/progs/rc/build/CMakeFiles 0
+.PHONY : CMakeFiles/testrc.dir/rule
+
+# Convenience name for target.
+testrc: CMakeFiles/testrc.dir/rule
+.PHONY : testrc
+
+# clean rule for target.
+CMakeFiles/testrc.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/testrc.dir/build.make CMakeFiles/testrc.dir/clean
+.PHONY : CMakeFiles/testrc.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

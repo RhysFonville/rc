@@ -1,13 +1,13 @@
 // TEST #4 - POINTERS AND STRINGS
 
 #main
-	int i 45int
-	^^int ip &i
+	int: i 45int
+	int^^: ip &i
 	^ip = 34int
 	
 	>w 1int &i 1int
 	
-	^^ch hello_world &n"Hello world!"
+	ch^^: hello_world &n"Hello world!"
 	>w 1 hello_world 12int
 	
 	>w 1int ip 1int
