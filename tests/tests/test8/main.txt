@@ -20,7 +20,7 @@
 
 		c != 126 ?
 			c = 1+c
-			>w 1 &"Your new character is: " 23int
+			>w 1int &"Your new character is: " 23int
 			>w 1int &c 1int
 			>w 1int &nl 1int
 		} ??

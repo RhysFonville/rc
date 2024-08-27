@@ -20,7 +20,7 @@ int: i 0int
 #main
 	i = add48
 	>w 1int &i 1int
-	i = 10
+	i = 10int
 	>w 1int &i 1int
 	mult2
 	

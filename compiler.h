@@ -244,18 +244,7 @@ static std::vector<BaseType> base_types{
 	{"ch", ".byte", sizeof(char)}
 };
 
-static std::string get_number(std::string s) {
-    for (BaseType type : base_types) {
-		if (int i = s.find(type.name); i != std::string::npos) {
-			s = s.substr(0, i);
-		}
-	}
-
-	return s;
-}
-
 static bool is_number(std::string s) {
-	s = get_number(s);
 	std::string::const_iterator it = s.begin();
     while (it != s.end() && (std::isdigit(*it) || *it == '-')) ++it;
     return !s.empty() && it == s.end();
@@ -484,10 +473,6 @@ static std::string get_string_literal(const std::vector<std::string> &toks, TokI
 //}
 
 static std::string prep_asm_str(std::string str) {
-	if (is_number(str)) {
-		str = get_number(str);
-	}
-
 	if (!get_register(str).has_value() && str.back() != ')') {
 		str = '$' + str;
 	}
@@ -523,23 +508,17 @@ static int get_size_of_register(const std::string &str) {
 }
 
 static int get_size_of_number(const std::string &str) {
-	int i = 0;
-	for (const std::string& type_name : type_names()) {
-		if (str.find(type_name) != std::string::npos) {
-			return base_types[i].size;
-		}
-		i++;
+	long number{};
+	try {
+		number = std::stoll(str);	
+	} catch (const std::out_of_range& e) {
+		message::error("Number out of bounds.");
 	}
 
-	long long number = std::stoll(str);	
-	
 	if (number < CHAR_MAX) return sizeof(char);
 	if (number < SHRT_MAX) return sizeof(short);
 	if (number < INT_MAX) return sizeof(int);
-	if (number < LONG_MAX) return sizeof(long);
-
-	message::error("Number out of bounds.");
-	return 0;
+	return sizeof(long);
 }
 
 static std::optional<Type> get_type_opt(const std::string &str) {
@@ -597,7 +576,17 @@ static Type get_type(TokIt tok_it, bool no_cast = false, bool by_name = false, B
 	} else {
 		if (!no_cast && *(tok_it+1) == "->" && from_it(_us_ltoks, tok_it+1) < _us_ltoks.size()) { // Weird bug where tok_it+1 has a value even though its out of bounds
 			if (by_name) message::error("Unnecessary to cast type by name.");
-			return get_type(tok_it+2, no_cast, true);
+
+			Type type{get_type(tok_it+2, no_cast, true)};
+			if (is_number(*tok_it)) {
+				if (get_size_of_number(*tok_it) <= type.get_size()) {
+					return type;
+				} else {
+					message::error("Number too big for the type being casted too.");
+				}
+			}
+			return type;
+	
 		} else {
 			if (by_name) {
 				std::optional<Type> type{get_type_by_name(*tok_it)};
@@ -695,8 +684,12 @@ static std::string get_mov_instruction(const std::string& lhs, const std::string
 			lhs_size = get_type(lhs).get_size();
 			rhs_size = lhs_size;
 		} else {
-			lhs_size = get_type(lhs).get_size();
 			rhs_size = get_type(rhs).get_size();
+			if (is_number(lhs)) {
+				lhs_size = rhs_size;
+			} else {
+				lhs_size = get_type(lhs).get_size();
+			}
 		}
 	}
 
@@ -713,8 +706,10 @@ static std::string change_eq_to_reg(std::string lhs, int lhs_size, const std::st
 		rhs_is_reg = true;
 	}
 
-	if (literal_default != -1 && is_number(lhs)) {
-		lhs_size = literal_default;
+	if (is_number(lhs)) {
+		if (literal_default != -1) {
+			lhs_size = literal_default;
+		}
 	}
 	
 	bool lhs_is_number{is_number(lhs)};
@@ -888,7 +883,7 @@ namespace token_function {
 				replace_toks(
 					_us_ltoks,
 				 	tok_it-1, tok_it+2,
-					std::to_string(std::stoll(get_number(*(tok_it-1))) + std::stoll(get_number(*(tok_it+1)))) + std::get<const BaseType>(lhs_type.real_type).name,
+					std::to_string(std::stoll(*(tok_it-1)) + std::stoll(*(tok_it+1))) + std::get<const BaseType>(lhs_type.real_type).name,
 					tok_it
 				);
 				tok_it -= 1;
