@@ -447,6 +447,8 @@ static std::string current_function = "";
 
 static const std::vector<std::string> math_symbols = { "*", "/", "+", "-" };
 
+static const std::vector<std::string> condition_operators{ "==", "!=", "<", ">", "<=", ">=" };
+
 static std::vector<std::string> out;
 
 static const std::string SYS_READ  = "$0";
@@ -1129,28 +1131,31 @@ namespace token_function {
 		return "";
 	}
 	
-	static void conditional(std::string lhs, std::string rhs, std::string con, int label) {
+	static void conditional(TokIt lhs, TokIt rhs, std::string con, int label) {
 		std::function<void(std::string&)> change_to_reg = [](std::string &str) {
 			RegisterRef reg = get_available_register();
 			reg->get().occupied = true;
-			//out.push_back(mov(str, reg->get().name_from_size(get_size_of_number(str))) + '\n');
-			str = reg->get().name_from_size(get_size_of_number(str));
+			int num_size{get_size_of_number(str)};
+			out.push_back(mov(str, get_type(str), reg->get().name_from_size(num_size), get_type_by_size(num_size).value()));
+			str = reg->get().name_from_size(num_size);
 		}; // Trying to somewhat stay DRY...
 		
-		if (is_number(rhs)) {
-			change_to_reg(rhs);
+		if (is_number(*rhs)) {
+			change_to_reg(*rhs);
 		}
-		if (is_number(lhs)) {
-			change_to_reg(lhs);
+		if (is_number(*lhs)) {
+			change_to_reg(*lhs);
 		}
 		
 		//std::pair<std::string, std::string> lhs_rhs = cast_lhs_rhs(lhs, rhs);
 		
 		Type type = get_type(lhs);
 		
+		Type lhs_asm_type{get_type(lhs, true)};
+		std::string asm_lhs{change_eq_to_reg(*lhs, lhs_asm_type.get_size(), *rhs, get_type(rhs, true).get_size())};
 		// Insert before call instruction
-		out.push_back(std::string{"cmp"} + size_to_letter(type.get_size()) +
-			' ' + prep_asm_str(lhs) + ", " + prep_asm_str(rhs) + '\n'
+		out.push_back(std::string{"cmp"} + size_to_letter(lhs_asm_type.get_size()) +
+			' ' + prep_asm_str(*lhs) + ", " + prep_asm_str(*rhs) + '\n'
 		);
 
 		out.push_back('j' + con + " .L" + std::to_string(label) + '\n');
@@ -1158,7 +1163,8 @@ namespace token_function {
 	
 	static void if_statement(TokIt tok_it) {
 		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::If, braces::braces_begin_index(), braces::get_last_condition(true).type_index+1));
-		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2), true), braces::braces.back().type_index);
+		TokIt op_it{find_first_tok(_us_ltoks, condition_operators, _us_ltoks.begin())};
+		conditional(tok_it+1, op_it+1, condition_operator_to_asm(*op_it, true), braces::braces.back().type_index);
 	}
 
 	static void else_statement(TokIt tok_it) {
@@ -1170,7 +1176,8 @@ namespace token_function {
 		braces::braces.push_back(Brace(Brace::State::Open, Brace::Type::While, braces::braces_begin_index(), braces::get_last_condition(true).type_index+2));
 		out.push_back("jmp .L" + std::to_string(braces::braces.back().type_index-1) + '\n');
 		out.push_back(".L" + std::to_string(braces::braces.back().type_index) + ":\n");
-		conditional(*(tok_it-3), *(tok_it-1), condition_operator_to_asm(*(tok_it-2)), braces::braces.back().type_index);
+		TokIt op_it{find_first_tok(_us_ltoks, condition_operators, _us_ltoks.begin())};
+		conditional(tok_it+1, op_it+1, condition_operator_to_asm(*op_it, true), braces::braces.back().type_index);
 	}
 	
 	static void while_loop_end(TokIt tok_it) {	
@@ -1367,10 +1374,10 @@ static int begin_compile(std::vector<std::string> args) {
 			while_us_find_token("??", 0, 0, [&](TokIt& tok_it) {
 				token_function::else_statement(tok_it);
 			});
-			while_us_find_token("?", 1, 0, [&](TokIt& tok_it) {
+			while_us_find_token("?", 0, 3, [&](TokIt& tok_it) {
 				token_function::if_statement(tok_it);
 			});
-			while_us_find_token("*?", 1, 0, [&](TokIt& tok_it) {
+			while_us_find_token("*?", 0, 3, [&](TokIt& tok_it) {
 				token_function::while_loop(tok_it);
 			});
 			while_us_find_token("~", 0, 0, [&](TokIt& tok_it) {

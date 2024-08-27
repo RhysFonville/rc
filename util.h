@@ -28,6 +28,11 @@ namespace message {
 	}
 }
 
+template <typename Container, typename ConstIterator>
+inline typename Container::iterator remove_constness(Container& c, ConstIterator it) {
+    return c.erase(it, it);
+}
+
 template <typename T>
 inline size_t from_it(const std::vector<T> &vec, const typename std::vector<T>::const_iterator &it) {
 	return std::distance(vec.begin(), it);
@@ -44,18 +49,13 @@ inline std::vector<std::string>::iterator find_tok(std::vector<std::string> &tok
 }
 
 inline std::vector<std::string>::iterator find_first_tok(std::vector<std::string> &toks, const std::vector<std::string> &toks_to_find,
-				std::vector<std::string>::iterator &begin) {
+				std::vector<std::string>::const_iterator begin) {
 	for (auto it = begin; it != toks.end(); it++) {
 		for (const std::string &tok : toks_to_find) {
-			if (*it == tok) return it;
+			if (*it == tok) return remove_constness(toks, it);
 		}
 	}
 	return toks.end();
-}
-
-template <typename Container, typename ConstIterator>
-inline typename Container::iterator remove_constness(Container& c, ConstIterator it) {
-    return c.erase(it, it);
 }
 
 inline void while_us_find_token(const std::string &tok, int begin, int end, const std::function<void(TokIt&)> &func) {
