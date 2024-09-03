@@ -822,6 +822,9 @@ static std::ranges::subrange<std::vector<std::string>::iterator> get_innermost_p
 	return std::ranges::subrange{begin, end+1};
 }
 
+static std::vector<std::string> get_arguments(const std::vector<std::string>& toks) {
+	std::vector<std::string> 
+
 namespace token_function {
 	static void dereference(TokIt tok_it) {
 		_us_ltoks.erase(tok_it);
