@@ -1,0 +1,26 @@
+// TEST #3 - Conditionals
+
+int: i 48->int
+
+#is_true
+	i = i+2->int
+	#> i
+}
+
+#main
+	sht: a i->sht
+	int: c i
+	? a == 2->sht
+		c = is_true
+	}
+	>w 1->int &c 1->int
+	? a == i->sht
+		c = is_true+1
+	}
+	>w 1->int &c 1->int
+	c = 10->int
+	>w 1->int &c 1->int
+	
+	>e 0->int
+	#> 0
+}

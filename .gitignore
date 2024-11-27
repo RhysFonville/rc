@@ -1,7 +1,0 @@
-asm-temp/
-/*.txt
-/*.o
-/*.s
-/*a.out
-/*core
-!tests/
