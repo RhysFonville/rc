@@ -823,7 +823,23 @@ static std::ranges::subrange<std::vector<std::string>::iterator> get_innermost_p
 }
 
 static std::vector<std::string> get_arguments(const std::vector<std::string>& toks) {
-	std::vector<std::string> 
+	if (toks[0] != "(") {
+		message::error("Arguments seen. Expected to be wrapped in parentheses.");
+	}
+	
+	std::vector<std::string> args{toks[1]};
+	
+	bool comma_expected{true};
+	for (const std::string& arg : std::vector<std::string>{toks.begin()+1, toks.end()}) {
+		if (arg != ", " && !comma_expected) {
+			args.push_back(arg);
+	  	} else {
+			message::error("Invalid formatting in arguments.");
+		}
+	}
+
+	return args;
+}
 
 namespace token_function {
 	static void dereference(TokIt tok_it) {
@@ -993,7 +1009,7 @@ namespace token_function {
 			//if (std::ranges::find(var->get().type_qualifiers, "dconst") != var->get().type_qualifiers.end() && is_dereferenced(*(tok_it-1))) {
 			//	message::error("Can't change the dereferenced value of dereference constant variable.");
 			//}
-		}
+		ldkfjghsldkfjgh test base functions and get arguments}
 
 		if (get_type(tok_it-1) != get_type(tok_it+1)) {
 			message::error("Cant set equal two different types.");
@@ -1003,6 +1019,8 @@ namespace token_function {
 	}
 
 	static void base_functions(TokIt tok_it) {
+		std::vector<std::string> args{get_arguments(std::vector<std::string>{tok_it+2, _us_ltoks.end()})};
+		
 		if (*(tok_it+1) == "w") { // WRITE
 			if (get_type(tok_it+2) != get_type_by_size(sizeof(int))) {
 				message::error("Base function 'w' parameter 1 accepts an integer.");
@@ -1015,13 +1033,13 @@ namespace token_function {
 			}
 
 			out.push_back("movl " + SYS_WRITE + ", %eax\n");
-			out.push_back(mov(*(tok_it+2), get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value())  + '\n');
-			out.push_back(mov(*(tok_it+3), get_type(tok_it+3, true), "%rsi", get_type_by_size(sizeof(long)).value())  + '\n');
-			out.push_back(mov(*(tok_it+4), get_type(tok_it+4, true), "%edx", get_type_by_size(sizeof(int)).value())  + '\n');
+			out.push_back(mov(args[0], get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value())  + '\n');
+			out.push_back(mov(args[1], get_type(tok_it+3, true), "%rsi", get_type_by_size(sizeof(long)).value())  + '\n');
+			out.push_back(mov(args[2], get_type(tok_it+4, true), "%edx", get_type_by_size(sizeof(int)).value())  + '\n');
 			out.push_back("syscall\n");
-			unoccupy_if_register(*(tok_it+2));
-			unoccupy_if_register(*(tok_it+3));
-			unoccupy_if_register(*(tok_it+4));
+			unoccupy_if_register(args[0]);
+			unoccupy_if_register(args[1]);
+			unoccupy_if_register(args[2]);
 		} else if (*(tok_it+1) == "r") { // READ
 			if (get_type(tok_it+2) != get_type_by_size(sizeof(int))) {
 				message::error("Base function 'r' parameter 1 accepts an integer.");
@@ -1034,22 +1052,22 @@ namespace token_function {
 			}
 			
 			out.push_back("movl " + SYS_READ + ", %eax\n");
-			out.push_back(mov(*(tok_it+2), get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value())  + '\n');
-			out.push_back(mov(*(tok_it+3), get_type(tok_it+3, true), "%rsi", get_type_by_size(sizeof(long)).value())  + '\n');
-			out.push_back(mov(*(tok_it+4), get_type(tok_it+4, true), "%edx", get_type_by_size(sizeof(int)).value()) + '\n');
+			out.push_back(mov(args[0], get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value())  + '\n');
+			out.push_back(mov(args[1], get_type(tok_it+3, true), "%rsi", get_type_by_size(sizeof(long)).value())  + '\n');
+			out.push_back(mov(args[2], get_type(tok_it+4, true), "%edx", get_type_by_size(sizeof(int)).value()) + '\n');
 			out.push_back("syscall\n");
-			unoccupy_if_register(*(tok_it+2));
-			unoccupy_if_register(*(tok_it+3));
-			unoccupy_if_register(*(tok_it+4));
+			unoccupy_if_register(args[0]);
+			unoccupy_if_register(args[1]);
+			unoccupy_if_register(args[2]);
 		} else if (*(tok_it+1) == "e") { // EXIT
 			if (get_type(tok_it+2) != get_type_by_size(sizeof(int)).value()) {
 				message::error("Base function 'e' accepts an integer.");
 			}
 
 			out.push_back("movl " + SYS_EXIT + ", %eax\n");
-			out.push_back(mov(*(tok_it+2), get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value()) + '\n');
+			out.push_back(mov(args[0], get_type(tok_it+2, true), "%edi", get_type_by_size(sizeof(int)).value()) + '\n');
 			out.push_back("syscall\n");
-			unoccupy_if_register(*(tok_it+2));
+			unoccupy_if_register(args[0]);
 		}
 	}
 
